@@ -1,0 +1,125 @@
+-- ============================================================
+-- AMC ENGINE LOG — DATABASE SCHEMA
+-- Run this entire file in Supabase SQL Editor
+-- ============================================================
+
+-- COMPANIES (one row per fleet / paying customer)
+CREATE TABLE companies (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  logo_url TEXT,
+  subscription_tier TEXT NOT NULL DEFAULT 'starter',
+  -- tiers: starter (5 vessels), pro (10), enterprise (25)
+  max_vessels INT NOT NULL DEFAULT 5,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- USERS (crew, office staff, admins — all tied to one company)
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  full_name TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'crew',
+  -- roles: admin (company owner), office (oversight), crew (logs only)
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- VESSELS (tied to a company — populated in admin setup)
+CREATE TABLE vessels (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  vessel_type TEXT,
+  -- types: crew_boat, fishing, tug, barge_support, other
+  year_built INT,
+  registration TEXT,
+  notes TEXT,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- CUSTOM CHECKLIST SECTIONS
+-- Companies can add sections beyond the standard base
+CREATE TABLE custom_sections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  section_name TEXT NOT NULL,
+  display_order INT NOT NULL DEFAULT 99,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- CUSTOM FIELDS within custom sections
+CREATE TABLE custom_fields (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  section_id UUID NOT NULL REFERENCES custom_sections(id) ON DELETE CASCADE,
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  field_label TEXT NOT NULL,
+  field_type TEXT NOT NULL DEFAULT 'check',
+  -- types: check (checkbox), reading (numeric input), text (free text)
+  unit TEXT,
+  -- for reading type: PSI, RPM, degF, etc.
+  display_order INT NOT NULL DEFAULT 99,
+  active BOOLEAN NOT NULL DEFAULT true
+);
+
+-- LOGS (one per watch / trip)
+CREATE TABLE logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  vessel_id UUID NOT NULL REFERENCES vessels(id),
+  submitted_by UUID NOT NULL REFERENCES users(id),
+  log_number TEXT NOT NULL,
+  -- manually entered by crew, matches company trip ticket
+  log_date DATE NOT NULL,
+  watch TEXT,
+  engineer_name TEXT,
+  engine_hours TEXT,
+  fuel_level TEXT,
+  crew_names TEXT[],
+  -- array: ['Name 1', 'Name 2', 'Name 3']
+  notes TEXT,
+  flag_count INT NOT NULL DEFAULT 0,
+  completion_pct INT NOT NULL DEFAULT 0,
+  submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- LOG CHECK ITEMS (one row per checklist item per log)
+CREATE TABLE log_check_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  log_id UUID NOT NULL REFERENCES logs(id) ON DELETE CASCADE,
+  company_id UUID NOT NULL REFERENCES companies(id),
+  section TEXT NOT NULL,
+  item_label TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'na',
+  -- ok, flag, na
+  is_custom BOOLEAN NOT NULL DEFAULT false
+);
+
+-- LOG READINGS (engine readings logged per watch)
+CREATE TABLE log_readings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  log_id UUID NOT NULL REFERENCES logs(id) ON DELETE CASCADE,
+  company_id UUID NOT NULL REFERENCES companies(id),
+  field_key TEXT NOT NULL,
+  field_label TEXT NOT NULL,
+  value TEXT,
+  unit TEXT
+);
+
+-- ============================================================
+-- INDEXES for fast lookups by company (tenant isolation)
+-- ============================================================
+CREATE INDEX idx_users_company ON users(company_id);
+CREATE INDEX idx_vessels_company ON vessels(company_id);
+CREATE INDEX idx_logs_company ON logs(company_id);
+CREATE INDEX idx_logs_vessel ON logs(vessel_id);
+CREATE INDEX idx_logs_date ON logs(log_date);
+CREATE INDEX idx_check_items_log ON log_check_items(log_id);
+CREATE INDEX idx_readings_log ON log_readings(log_id);
+CREATE INDEX idx_custom_sections_company ON custom_sections(company_id);
+CREATE INDEX idx_custom_fields_company ON custom_fields(company_id);
