@@ -1,2 +1,131 @@
-const router = require('express').Router();
+const express = require('express');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const supabase = require('../lib/supabase');
+const { requireAuth } = require('../middleware/auth');
+const router = express.Router();
+
+// ── POST /api/auth/register ──────────────────────────────────
+// Register a new company + first admin user
+router.post('/register', async (req, res) => {
+  const { company_name, full_name, email, password } = req.body;
+
+  if (!company_name || !full_name || !email || !password) {
+    return res.status(400).json({ error: 'All fields required' });
+  }
+  if (password.length < 8) {
+    return res.status(400).json({ error: 'Password must be 8+ characters' });
+  }
+
+  try {
+    // 1. Create the company
+    const { data: company, error: companyErr } = await supabase
+      .from('companies')
+      .insert({ name: company_name, subscription_tier: 'starter', max_vessels: 5 })
+      .select()
+      .single();
+
+    if (companyErr) throw companyErr;
+
+    // 2. Hash password
+    const password_hash = await bcrypt.hash(password, 12);
+
+    // 3. Create admin user
+    const { data: user, error: userErr } = await supabase
+      .from('users')
+      .insert({
+        company_id: company.id,
+        email: email.toLowerCase().trim(),
+        password_hash,
+        full_name,
+        role: 'admin'
+      })
+      .select('id, company_id, role, full_name, email')
+      .single();
+
+    if (userErr) {
+      // Roll back company if user creation fails
+      await supabase.from('companies').delete().eq('id', company.id);
+      if (userErr.code === '23505') {
+        return res.status(400).json({ error: 'Email already registered' });
+      }
+      throw userErr;
+    }
+
+    // 4. Issue JWT
+    const token = jwt.sign(
+      { userId: user.id, companyId: company.id, role: 'admin' },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.status(201).json({
+      message: 'Company and admin account created',
+      token,
+      user: { id: user.id, full_name, email, role: 'admin' },
+      company: { id: company.id, name: company_name }
+    });
+
+  } catch (err) {
+    console.error('Register error:', err);
+    res.status(500).json({ error: 'Registration failed', detail: err.message });
+  }
+});
+
+// ── POST /api/auth/login ─────────────────────────────────────
+router.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password required' });
+  }
+
+  try {
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, company_id, email, password_hash, full_name, role, active')
+      .eq('email', email.toLowerCase().trim())
+      .single();
+
+    if (error || !user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    if (!user.active) {
+      return res.status(401).json({ error: 'Account inactive — contact your admin' });
+    }
+
+    const valid = await bcrypt.compare(password, user.password_hash);
+    if (!valid) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const token = jwt.sign(
+      { userId: user.id, companyId: user.company_id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        full_name: user.full_name,
+        email: user.email,
+        role: user.role,
+        company_id: user.company_id
+      }
+    });
+
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+// ── GET /api/auth/me ─────────────────────────────────────────
+// Returns current logged-in user (useful for frontend session restore)
+router.get('/me', requireAuth, async (req, res) => {
+  res.json({ user: req.user });
+});
+
 module.exports = router;
