@@ -1,0 +1,444 @@
+const express = require('express');
+const supabase = require('../lib/supabase');
+const { requireAuth, requireRole } = require('../middleware/auth');
+const router = express.Router();
+
+// All vessel routes require login
+router.use(requireAuth);
+
+// ── GET /api/vessels ─────────────────────────────────────────
+// Get all vessels for the logged-in user's company
+router.get('/', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('vessels')
+      .select('*')
+      .eq('company_id', req.user.company_id)
+      .eq('active', true)
+      .order('name');
+
+    if (error) throw error;
+    res.json({ vessels: data });
+
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch vessels' });
+  }
+});
+
+// ── POST /api/vessels ────────────────────────────────────────
+// Add a new vessel — admin only
+router.post('/', requireRole(['admin']), async (req, res) => {
+  const { name, vessel_type, year_built, registration, notes } = req.body;
+
+  if (!name) return res.status(400).json({ error: 'Vessel name required' });
+
+  try {
+    // Check vessel limit for subscription tier
+    const { count } = await supabase
+      .from('vessels')
+      .select('*', { count: 'exact', head: true })
+      .eq('company_id', req.user.company_id)
+      .eq('active', true);
+
+    const { data: company } = await supabase
+      .from('companies')
+      .select('max_vessels')
+      .eq('id', req.user.company_id)
+      .single();
+
+    if (count >= company.max_vessels) {
+      return res.status(403).json({
+        error: `Vessel limit reached (${company.max_vessels} on your plan). Upgrade to add more.`
+      });
+    }
+
+    const { data, error } = await supabase
+      .from('vessels')
+      .insert({
+        company_id: req.user.company_id,
+        name, vessel_type, year_built, registration, notes
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.status(201).json({ vessel: data });
+
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create vessel', detail: err.message });
+  }
+});
+
+// ── PUT /api/vessels/:id ─────────────────────────────────────
+// Update a vessel — admin only
+router.put('/:id', requireRole(['admin']), async (req, res) => {
+  const { name, vessel_type, year_built, registration, notes } = req.body;
+
+  try {
+    const { data, error } = await supabase
+      .from('vessels')
+      .update({ name, vessel_type, year_built, registration, notes })
+      .eq('id', req.params.id)
+      .eq('company_id', req.user.company_id) // tenant safety
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Vessel not found' });
+    res.json({ vessel: data });
+
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update vessel' });
+  }
+});
+
+// ── DELETE /api/vessels/:id ──────────────────────────────────
+// Soft delete (sets active=false) — admin only
+router.delete('/:id', requireRole(['admin']), async (req, res) => {
+  try {
+    const { error } = await supabase
+      .from('vessels')
+      .update({ active: false })
+      .eq('id', req.params.id)
+      .eq('company_id', req.user.company_id);
+
+    if (error) throw error;
+    res.json({ message: 'Vessel removed' });
+
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to remove vessel' });
+  }
+});
+
+module.exports = router;
+routes/logs.js
+Submit logs, get logs, get single log detail
+Copy
+const express = require('express');
+const supabase = require('../lib/supabase');
+const { requireAuth, requireRole } = require('../middleware/auth');
+const router = express.Router();
+
+router.use(requireAuth);
+
+// ── GET /api/logs ────────────────────────────────────────────
+// Get all logs for this company (office/admin view)
+router.get('/', requireRole(['admin', 'office']), async (req, res) => {
+  const { vessel_id, date_from, date_to, flagged } = req.query;
+
+  try {
+    let query = supabase
+      .from('logs')
+      .select(`
+        id, log_number, log_date, watch, engineer_name,
+        engine_hours, fuel_level, crew_names, flag_count,
+        completion_pct, submitted_at,
+        vessel:vessels(id, name, vessel_type)
+      `)
+      .eq('company_id', req.user.company_id)
+      .order('submitted_at', { ascending: false });
+
+    if (vessel_id) query = query.eq('vessel_id', vessel_id);
+    if (date_from) query = query.gte('log_date', date_from);
+    if (date_to)   query = query.lte('log_date', date_to);
+    if (flagged === 'true') query = query.gt('flag_count', 0);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json({ logs: data });
+
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch logs' });
+  }
+});
+
+// ── GET /api/logs/:id ────────────────────────────────────────
+// Get full detail of one log (all check items + readings)
+router.get('/:id', async (req, res) => {
+  try {
+    const { data: log, error } = await supabase
+      .from('logs')
+      .select(`
+        *,
+        vessel:vessels(id, name, vessel_type)
+      `)
+      .eq('id', req.params.id)
+      .eq('company_id', req.user.company_id) // tenant safety
+      .single();
+
+    if (error || !log) return res.status(404).json({ error: 'Log not found' });
+
+    const { data: checkItems } = await supabase
+      .from('log_check_items')
+      .select('*')
+      .eq('log_id', req.params.id)
+      .order('section');
+
+    const { data: readings } = await supabase
+      .from('log_readings')
+      .select('*')
+      .eq('log_id', req.params.id);
+
+    res.json({ log, checkItems, readings });
+
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch log detail' });
+  }
+});
+
+// ── POST /api/logs ───────────────────────────────────────────
+// Submit a new log (crew)
+router.post('/', async (req, res) => {
+  const {
+    vessel_id, log_number, log_date, watch,
+    engineer_name, engine_hours, fuel_level,
+    crew_names, notes, checks, readings
+  } = req.body;
+
+  if (!vessel_id || !log_number || !log_date) {
+    return res.status(400).json({ error: 'vessel_id, log_number, and log_date are required' });
+  }
+
+  try {
+    // Confirm vessel belongs to this company
+    const { data: vessel } = await supabase
+      .from('vessels')
+      .select('id')
+      .eq('id', vessel_id)
+      .eq('company_id', req.user.company_id)
+      .single();
+
+    if (!vessel) return res.status(403).json({ error: 'Vessel not found or not yours' });
+
+    // Count flags and completion
+    let flagCount = 0, doneCount = 0, totalCount = 0;
+    const allItems = [];
+
+    if (checks) {
+      Object.entries(checks).forEach(([section, items]) => {
+        items.forEach(item => {
+          totalCount++;
+          if (item.status === 'ok') doneCount++;
+          if (item.status === 'flag') flagCount++;
+          allItems.push({
+            company_id: req.user.company_id,
+            section,
+            item_label: item.label,
+            status: item.status || 'na',
+            is_custom: item.is_custom || false
+          });
+        });
+      });
+    }
+
+    const completion_pct = totalCount > 0
+      ? Math.round((doneCount / totalCount) * 100)
+      : 0;
+
+    // Insert log record
+    const { data: log, error: logErr } = await supabase
+      .from('logs')
+      .insert({
+        company_id: req.user.company_id,
+        vessel_id,
+        submitted_by: req.user.id,
+        log_number, log_date, watch,
+        engineer_name, engine_hours, fuel_level,
+        crew_names: crew_names || [],
+        notes, flag_count: flagCount, completion_pct
+      })
+      .select()
+      .single();
+
+    if (logErr) throw logErr;
+
+    // Insert check items
+    if (allItems.length > 0) {
+      const itemsWithLog = allItems.map(i => ({ ...i, log_id: log.id }));
+      const { error: itemErr } = await supabase
+        .from('log_check_items')
+        .insert(itemsWithLog);
+      if (itemErr) throw itemErr;
+    }
+
+    // Insert readings
+    if (readings && readings.length > 0) {
+      const readingsWithLog = readings.map(r => ({
+        log_id: log.id,
+        company_id: req.user.company_id,
+        field_key: r.key,
+        field_label: r.label,
+        value: r.value,
+        unit: r.unit
+      }));
+      const { error: readErr } = await supabase
+        .from('log_readings')
+        .insert(readingsWithLog);
+      if (readErr) throw readErr;
+    }
+
+    res.status(201).json({
+      message: 'Log submitted',
+      log_id: log.id,
+      flag_count: flagCount,
+      completion_pct
+    });
+
+  } catch (err) {
+    console.error('Submit log error:', err);
+    res.status(500).json({ error: 'Failed to submit log', detail: err.message });
+  }
+});
+
+module.exports = router;
+routes/admin.js
+User management, custom sections, company config
+Copy
+const express = require('express');
+const bcrypt = require('bcryptjs');
+const supabase = require('../lib/supabase');
+const { requireAuth, requireRole } = require('../middleware/auth');
+const router = express.Router();
+
+router.use(requireAuth);
+router.use(requireRole(['admin']));
+// All routes in this file: admin only
+
+// ── GET /api/admin/users ─────────────────────────────────────
+router.get('/users', async (req, res) => {
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, full_name, email, role, active, created_at')
+    .eq('company_id', req.user.company_id)
+    .order('full_name');
+
+  if (error) return res.status(500).json({ error: 'Failed to fetch users' });
+  res.json({ users: data });
+});
+
+// ── POST /api/admin/users ────────────────────────────────────
+// Add crew/office user to the company
+router.post('/users', async (req, res) => {
+  const { full_name, email, password, role } = req.body;
+
+  if (!full_name || !email || !password) {
+    return res.status(400).json({ error: 'full_name, email, and password required' });
+  }
+
+  const allowed_roles = ['admin', 'office', 'crew'];
+  if (role && !allowed_roles.includes(role)) {
+    return res.status(400).json({ error: 'Invalid role' });
+  }
+
+  try {
+    const password_hash = await bcrypt.hash(password, 12);
+    const { data, error } = await supabase
+      .from('users')
+      .insert({
+        company_id: req.user.company_id,
+        full_name, email: email.toLowerCase().trim(),
+        password_hash, role: role || 'crew'
+      })
+      .select('id, full_name, email, role')
+      .single();
+
+    if (error) {
+      if (error.code === '23505') return res.status(400).json({ error: 'Email already in use' });
+      throw error;
+    }
+    res.status(201).json({ user: data });
+
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create user', detail: err.message });
+  }
+});
+
+// ── PUT /api/admin/users/:id/deactivate ──────────────────────
+router.put('/users/:id/deactivate', async (req, res) => {
+  const { error } = await supabase
+    .from('users')
+    .update({ active: false })
+    .eq('id', req.params.id)
+    .eq('company_id', req.user.company_id);
+
+  if (error) return res.status(500).json({ error: 'Failed to deactivate user' });
+  res.json({ message: 'User deactivated' });
+});
+
+// ── GET /api/admin/custom-sections ──────────────────────────
+router.get('/custom-sections', async (req, res) => {
+  const { data, error } = await supabase
+    .from('custom_sections')
+    .select('*, custom_fields(*)')
+    .eq('company_id', req.user.company_id)
+    .eq('active', true)
+    .order('display_order');
+
+  if (error) return res.status(500).json({ error: 'Failed to fetch sections' });
+  res.json({ sections: data });
+});
+
+// ── POST /api/admin/custom-sections ─────────────────────────
+// Add a custom checklist section (e.g. "Winch Systems" for tugs)
+router.post('/custom-sections', async (req, res) => {
+  const { section_name, display_order } = req.body;
+  if (!section_name) return res.status(400).json({ error: 'section_name required' });
+
+  const { data, error } = await supabase
+    .from('custom_sections')
+    .insert({ company_id: req.user.company_id, section_name, display_order: display_order || 99 })
+    .select()
+    .single();
+
+  if (error) return res.status(500).json({ error: 'Failed to create section' });
+  res.status(201).json({ section: data });
+});
+
+// ── POST /api/admin/custom-fields ───────────────────────────
+// Add a field to a custom section
+router.post('/custom-fields', async (req, res) => {
+  const { section_id, field_label, field_type, unit, display_order } = req.body;
+  if (!section_id || !field_label) {
+    return res.status(400).json({ error: 'section_id and field_label required' });
+  }
+
+  // Confirm section belongs to this company
+  const { data: section } = await supabase
+    .from('custom_sections')
+    .select('id')
+    .eq('id', section_id)
+    .eq('company_id', req.user.company_id)
+    .single();
+
+  if (!section) return res.status(403).json({ error: 'Section not found' });
+
+  const { data, error } = await supabase
+    .from('custom_fields')
+    .insert({
+      section_id,
+      company_id: req.user.company_id,
+      field_label,
+      field_type: field_type || 'check',
+      unit,
+      display_order: display_order || 99
+    })
+    .select()
+    .single();
+
+  if (error) return res.status(500).json({ error: 'Failed to create field' });
+  res.status(201).json({ field: data });
+});
+
+// ── GET /api/admin/company ───────────────────────────────────
+router.get('/company', async (req, res) => {
+  const { data, error } = await supabase
+    .from('companies')
+    .select('id, name, logo_url, subscription_tier, max_vessels, created_at')
+    .eq('id', req.user.company_id)
+    .single();
+
+  if (error) return res.status(500).json({ error: 'Failed to fetch company' });
+  res.json({ company: data });
+});
+
+module.exports = router;
