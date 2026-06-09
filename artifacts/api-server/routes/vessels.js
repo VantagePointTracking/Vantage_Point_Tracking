@@ -25,6 +25,25 @@ router.get('/', async (req, res) => {
   }
 });
 
+// ── GET /api/vessels/:id ─────────────────────────────────────
+// Get a single vessel by ID
+router.get('/:id', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('vessels')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('company_id', req.user.company_id) // tenant safety
+      .single();
+
+    if (error || !data) return res.status(404).json({ error: 'Vessel not found' });
+    res.json({ vessel: data });
+
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch vessel' });
+  }
+});
+
 // ── POST /api/vessels ────────────────────────────────────────
 // Add a new vessel — admin only
 router.post('/', requireRole(['admin']), async (req, res) => {
