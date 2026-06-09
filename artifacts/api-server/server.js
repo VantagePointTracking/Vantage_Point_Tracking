@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 
 const authRoutes = require('./routes/auth');
 const vesselRoutes = require('./routes/vessels');
@@ -13,14 +14,16 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Serve static files (index.html, CSS, JS) from this directory
-app.use(express.static(__dirname));
-
-// Routes
+// API Routes
 app.use('/api/auth',    authRoutes);
 app.use('/api/vessels', vesselRoutes);
 app.use('/api/logs',    logRoutes);
 app.use('/api/admin',   adminRoutes);
+
+// Serve index.html at root and /api
+app.get(['/', '/api', '/api/'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 // 404 handler
 app.use((req, res) => {
