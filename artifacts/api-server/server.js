@@ -13,14 +13,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Health check — visit your Replit URL to confirm it's running
-app.get('/', (req, res) => {
-  res.json({
-    status: 'AMC Engine Log API running',
-    version: '1.0.0',
-    timestamp: new Date().toISOString()
-  });
-});
+// Serve static files (index.html, CSS, JS) from this directory
+app.use(express.static(__dirname));
 
 // Routes
 app.use('/api/auth',    authRoutes);
