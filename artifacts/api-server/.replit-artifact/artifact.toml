@@ -10,7 +10,7 @@ name = "API Server"
 paths = ["/api"]
 
 [services.development]
-run = "node server.js"
+run = "node_modules/.bin/nodemon server.js"
 workdir = "artifacts/api-server"
 env = { PORT = "8080" }
 
