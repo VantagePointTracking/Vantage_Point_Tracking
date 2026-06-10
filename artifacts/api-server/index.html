@@ -448,21 +448,24 @@ async function submitLog() {
   const done = checkItems.filter(c => c.checked).length;
   const today = new Date();
   const logDate = today.toISOString().split('T')[0];
-  const logNumber = 'LOG-' + currentVessel.id.slice(0,4).toUpperCase() + '-' + Date.now().toString().slice(-6);
+  const tripTicket = document.getElementById('trip-ticket').value.trim();
+  const logNumber = tripTicket || ('LOG-' + currentVessel.id.slice(0,4).toUpperCase() + '-' + Date.now().toString().slice(-6));
 
   const payload = {
     vessel_id: currentVessel.id,
     log_number: logNumber,
     log_date: logDate,
     engineer_name: engineer,
-    watch_start: document.getElementById('watch-start').value,
-    watch_end: document.getElementById('watch-end').value,
-    engine_hours: document.getElementById('r-hours').value,
-    fuel_level: document.getElementById('r-fuel').value,
+    submitted_by: engineer,
+    watch: document.getElementById('watch-start').value + ' - ' + document.getElementById('watch-end').value,
+    engine_hours: parseFloat(document.getElementById('r-hours').value) || null,
+    fuel_level: parseFloat(document.getElementById('r-fuel').value) || null,
     notes: document.getElementById('log-notes').value,
     completion_pct: Math.round((done / total) * 100),
+    flag_count: checkItems.filter(c => c.flag !== 'ok' && c.checked).length,
     check_items: checkItems
   };
+
   btn.innerHTML = '<span class="spinner"></span>Submitting…';
   btn.disabled = true;
   try {

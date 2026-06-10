@@ -1,0 +1,45 @@
+async function submitLog() {
+  const engineer = document.getElementById('engineer-name').value.trim();
+  if (!engineer) { alert('Please enter the engineer name before submitting.'); return; }
+  const btn = document.getElementById('submit-btn');
+  const checkItems = Object.entries(checkState).map(([key, val]) => ({item_key: key, checked: val.checked, flag: val.flag}));
+  const total = checkItems.length;
+  const done = checkItems.filter(c => c.checked).length;
+  const today = new Date();
+  const logDate = today.toISOString().split('T')[0];
+  const tripTicket = document.getElementById('trip-ticket').value.trim();
+  const logNumber = tripTicket || ('LOG-' + currentVessel.id.slice(0,4).toUpperCase() + '-' + Date.now().toString().slice(-6));
+
+  const payload = {
+    vessel_id: currentVessel.id,
+    log_number: logNumber,
+    log_date: logDate,
+    engineer_name: engineer,
+    submitted_by: engineer,
+    watch: document.getElementById('watch-start').value + ' - ' + document.getElementById('watch-end').value,
+    engine_hours: parseFloat(document.getElementById('r-hours').value) || null,
+    fuel_level: parseFloat(document.getElementById('r-fuel').value) || null,
+    notes: document.getElementById('log-notes').value,
+    completion_pct: Math.round((done / total) * 100),
+    flag_count: checkItems.filter(c => c.flag !== 'ok' && c.checked).length,
+    check_items: checkItems
+  };
+
+  btn.innerHTML = '<span class="spinner"></span>Submitting…';
+  btn.disabled = true;
+  try {
+    const res = await fetch(API + '/api/logs', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Submission failed');
+    document.getElementById('success-detail').textContent = currentVessel.name + ' — ' + new Date().toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
+    show('success');
+  } catch(e) {
+    alert('Error submitting log: ' + (e.message || 'Please try again.'));
+  }
+  btn.innerHTML = 'Submit engine log';
+  btn.disabled = false;
+}
