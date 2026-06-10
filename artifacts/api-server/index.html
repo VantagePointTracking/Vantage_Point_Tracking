@@ -369,15 +369,20 @@ async function loadHistory() {
   const box = document.getElementById('history-content');
   box.innerHTML = 'Loading…';
   try {
-    const res = await fetch(API + '/api/logs?limit=20', {headers: {'Authorization': 'Bearer ' + token}});
-    const data = await res.json();
-    const logs = data.logs || data || [];
+    const [logsRes, vesselsRes] = await Promise.all([
+      fetch(API + '/api/logs?limit=20', {headers: {'Authorization': 'Bearer ' + token}}),
+      fetch(API + '/api/vessels', {headers: {'Authorization': 'Bearer ' + token}})
+    ]);
+    const logsData = await logsRes.json();
+    const vesselsData = await vesselsRes.json();
+    const logs = logsData.logs || logsData || [];
+    const vessels = vesselsData.vessels || vesselsData || [];
     if (!logs.length) { box.innerHTML = '<span style="color:#999">No submissions yet.</span>'; return; }
     box.innerHTML = logs.map(l => {
       const submittedAt = new Date(l.submitted_at || l.created_at || Date.now());
       const minutesAgo = (Date.now() - submittedAt.getTime()) / 60000;
       const canEdit = minutesAgo <= 30;
-      const vesselName = l.vessel_name || l.name || l.vessel?.name || 'Unknown vessel';
+      const vesselName = l.vessel_name || vessels.find(v => v.id === l.vessel_id)?.name || 'Unknown vessel';
       return `<div style="padding:10px 0;border-bottom:1px solid #f0f0eb">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <span style="font-weight:500;font-size:14px">${vesselName}</span>
