@@ -253,7 +253,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#185FA5}
 
 <script>
 const API = 'https://b35aec0f-4fc0-4f21-bc27-3343e53cd6fc-00-3qg8rhbs45hik.picard.replit.dev';
-let token = null, currentUser = null, currentVessel = null, checkState = {};
+let token = null, currentUser = null, currentVessel = null, checkState = {}, editingLogId = null;
 
 const CHECKS = {
   predep: [
@@ -382,7 +382,7 @@ async function loadHistory() {
       const submittedAt = new Date(l.submitted_at || l.created_at || Date.now());
       const minutesAgo = (Date.now() - submittedAt.getTime()) / 60000;
       const canEdit = minutesAgo <= 30;
-      const vesselName = l.vessel_name || vessels.find(v => v.id === l.vessel_id)?.name || 'Unknown vessel';
+      const vesselName = l.vessel?.name || vessels.find(v => v.id === l.vessel_id)?.name || 'Unknown vessel';
       return `<div style="padding:10px 0;border-bottom:1px solid #f0f0eb">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <span style="font-weight:500;font-size:14px">${vesselName}</span>
@@ -400,8 +400,59 @@ async function loadHistory() {
   }
 }
 
-function editLog(logId) {
-  alert('Edit feature coming — log ID: ' + logId);
+async function editLog(logId) {
+  try {
+    const res = await fetch(API + '/api/logs/' + logId, {
+      headers: {'Authorization': 'Bearer ' + token}
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load log');
+    const { log, checkItems } = data;
+
+    // Confirm still within 30-min window
+    const ageMinutes = (Date.now() - new Date(log.submitted_at).getTime()) / 60000;
+    if (ageMinutes > 30) { alert('The 30-minute edit window has closed for this log.'); return; }
+
+    // Open the checklist for the same vessel (this resets checkState)
+    openChecklist({ id: log.vessel_id, name: log.vessel?.name || 'Vessel' });
+
+    // Pre-fill check boxes from saved items
+    // Saved item_label = original item_key e.g. 'checks-predep_0'
+    (checkItems || []).forEach(item => {
+      const key = item.item_label; // stored as item_key in POST route
+      if (checkState[key] !== undefined) {
+        checkState[key].checked = item.status === 'ok' || item.status === 'flag';
+        checkState[key].flag = item.status === 'flag' ? 'flag' : 'ok';
+      }
+    });
+    updateProgress();
+
+    // Re-render checkbox UI to reflect pre-filled state
+    document.querySelectorAll('.check-item').forEach(el => {
+      const key = el.dataset.key;
+      if (!key || !checkState[key]) return;
+      const cb = el.querySelector('input[type=checkbox]');
+      if (cb) cb.checked = checkState[key].checked;
+    });
+
+    // Pre-fill crew info + readings
+    if (log.watch) {
+      const parts = log.watch.split(' - ');
+      document.getElementById('watch-start').value = parts[0] || '';
+      document.getElementById('watch-end').value = parts[1] || '';
+    }
+    document.getElementById('engineer-name').value = log.engineer_name || '';
+    document.getElementById('r-hours').value = log.engine_hours || '';
+    document.getElementById('r-fuel').value = log.fuel_level || '';
+    document.getElementById('log-notes').value = log.notes || '';
+
+    // Set edit mode
+    editingLogId = logId;
+    document.getElementById('submit-btn').textContent = 'Update log';
+
+  } catch(e) {
+    alert('Could not load log for editing: ' + e.message);
+  }
 }
 
 function buildChecks(sectionId, items) {
@@ -458,6 +509,8 @@ function openChecklist(vessel) {
   document.getElementById('engineer-name').value = '';
   document.getElementById('log-notes').value = '';
   ['r-rpm','r-oil','r-coolant','r-fuel','r-bilge','r-hours'].forEach(id => document.getElementById(id).value = '');
+  editingLogId = null;
+  document.getElementById('submit-btn').textContent = 'Submit engine log';
   show('checklist');
 }
 
@@ -488,20 +541,23 @@ async function submitLog() {
     check_items: checkItems
   };
 
-  btn.innerHTML = '<span class="spinner"></span>Submitting…';
+  btn.innerHTML = '<span class="spinner"></span>' + (editingLogId ? 'Updating…' : 'Submitting…');
   btn.disabled = true;
   try {
-    const res = await fetch(API + '/api/logs', {
-      method: 'POST',
+    const url = editingLogId ? API + '/api/logs/' + editingLogId : API + '/api/logs';
+    const method = editingLogId ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+      method,
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token},
       body: JSON.stringify(payload)
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Submission failed');
     document.getElementById('success-detail').textContent = currentVessel.name + ' — ' + new Date().toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
+    editingLogId = null;
     show('success');
   } catch(e) {
-    alert('Error submitting log: ' + (e.message || 'Please try again.'));
+    alert('Error ' + (editingLogId ? 'updating' : 'submitting') + ' log: ' + (e.message || 'Please try again.'));
   }
   btn.innerHTML = 'Submit engine log';
   btn.disabled = false;
