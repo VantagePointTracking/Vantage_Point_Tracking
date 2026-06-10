@@ -374,8 +374,21 @@ async function loadHistory() {
     const logs = data.logs || data || [];
     if (!logs.length) { box.innerHTML = '<span style="color:#999">No submissions yet.</span>'; return; }
     box.innerHTML = logs.map(l => {
-      const d = new Date(l.created_at || l.submitted_at || Date.now());
-      return '<div style="padding:8px 0;border-bottom:1px solid #f0f0eb;display:flex;justify-content:space-between;align-items:center"><span style="font-weight:500">' + (l.vessel_name || 'Vessel') + '</span><span style="color:#666;font-size:12px">' + d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + '</span></div>';
+      const submittedAt = new Date(l.submitted_at || l.created_at || Date.now());
+      const minutesAgo = (Date.now() - submittedAt.getTime()) / 60000;
+      const canEdit = minutesAgo <= 30;
+      const vesselName = l.vessel_name || l.name || l.vessel?.name || 'Unknown vessel';
+      return `<div style="padding:10px 0;border-bottom:1px solid #f0f0eb">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:500;font-size:14px">${vesselName}</span>
+          <span style="color:#666;font-size:12px">${submittedAt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+          <span style="font-size:12px;color:#888">${l.engineer_name || 'No name'} &mdash; ${l.completion_pct || 0}% complete</span>
+          ${canEdit ? `<button class="action-btn" onclick="editLog('${l.id}')" style="font-size:11px;padding:3px 8px;color:#185FA5;border-color:#185FA5">Edit</button>` : '<span style="font-size:11px;color:#bbb">Locked</span>'}
+        </div>
+        ${canEdit ? `<div style="font-size:11px;color:#888;margin-top:3px">${Math.floor(30 - minutesAgo)} min left to edit</div>` : ''}
+      </div>`;
     }).join('');
   } catch(e) {
     box.innerHTML = '<span style="color:#c0392b">Could not load history.</span>';
