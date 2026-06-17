@@ -1,0 +1,5 @@
+[phases.install]
+cmds = ["cd artifacts/api-server && npm install"]
+
+[start]
+cmd = "cd artifacts/api-server && node -r dotenv/config server.js"
