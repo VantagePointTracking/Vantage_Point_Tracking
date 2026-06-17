@@ -1,0 +1,11 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "cd artifacts/api-server && npm install"
+  },
+  "deploy": {
+    "startCommand": "cd artifacts/api-server && node -r dotenv/config server.js",
+    "restartPolicyType": "ON_FAILURE"
+  }
+}
