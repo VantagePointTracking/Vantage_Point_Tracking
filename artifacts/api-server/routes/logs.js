@@ -216,7 +216,7 @@ router.put('/:id', async (req, res) => {
 
     // Enforce 30-minute window
     const ageMinutes = (Date.now() - new Date(existing.submitted_at).getTime()) / 60000;
-    if (ageMinutes > 30) {
+    if (ageMinutes > 120) {
       return res.status(403).json({ error: 'Edit window has closed (30 minutes)' });
     }
 

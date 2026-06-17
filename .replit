@@ -11,6 +11,16 @@ env = { "CI" = "true" }
 [workflows]
 runButton = "Project"
 
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd /home/runner/workspace/artifacts/api-server && PORT=8080 node -r dotenv/config server.js"
+waitForPort = 8080
+
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true
@@ -20,6 +30,10 @@ path = "scripts/post-merge.sh"
 timeoutMs = 20000
 
 [[ports]]
+localPort = 3000
+externalPort = 3000
+
+[[ports]]
 localPort = 8080
 externalPort = 8080
 
@@ -27,7 +41,13 @@ externalPort = 8080
 localPort = 8081
 externalPort = 80
 
-[userenv]
+[[ports]]
+localPort = 8082
+externalPort = 3001
 
+[userenv]
 [userenv.shared]
-PORT = "3000"
+PORT = "8080"
+
+[nix]
+packages = ["psmisc"]
