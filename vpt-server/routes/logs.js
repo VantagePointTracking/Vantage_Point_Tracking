@@ -115,30 +115,17 @@ router.post('/', async (req, res) => {
           : 'na';
         if (status === 'ok') computedDone++;
         if (status === 'flag') computedFlags++;
-        const section = item.item_key.replace(/^checks-/, '').replace(/_\d+$/, '');
+        
+        // Handle variations in how the frontend labels the keys
+        const itemLabel = item.item_key || item.label || 'Unknown Item';
+        const section = itemLabel.replace(/^checks-/, '').replace(/_\d+$/, '');
+        
         allItems.push({
           company_id: req.user.company_id,
           section: section || 'general',
-          item_label: item.item_key,
+          item_label: itemLabel,
           status,
           is_custom: false
-        });
-      });
-    }
-
-    if (checks && typeof checks === 'object') {
-      Object.entries(checks).forEach(([section, items]) => {
-        items.forEach(item => {
-          computedTotal++;
-          if (item.status === 'ok') computedDone++;
-          if (item.status === 'flag') computedFlags++;
-          allItems.push({
-            company_id: req.user.company_id,
-            section,
-            item_label: item.label,
-            status: item.status || 'na',
-            is_custom: item.is_custom || false
-          });
         });
       });
     }
@@ -232,83 +219,26 @@ router.put('/:id', async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
+    // Extended 120-minute edit window
     const ageMinutes = (Date.now() - new Date(existing.submitted_at).getTime()) / 60000;
     if (ageMinutes > 120) {
       return res.status(403).json({ error: 'Log sheet edit window has closed' });
     }
 
-    const {
-      engineer_name, engine_hours, fuel_level,
-      notes, flag_count, completion_pct, check_items, watches
-    } = req.body;
-
-    const allItems = [];
-    let computedFlags = 0, computedDone = 0, computedTotal = 0;
-
-    if (check_items && Array.isArray(check_items)) {
-      check_items.forEach(item => {
-        computedTotal++;
-        const status = item.checked
-          ? (item.flag && item.flag !== 'ok' ? 'flag' : 'ok')
-          : 'na';
-        if (status === 'ok') computedDone++;
-        if (status === 'flag') computedFlags++;
-        const section = item.item_key.replace(/^checks-/, '').replace(/_\d+$/, '');
-        allItems.push({
-          log_id: existing.id,
-          company_id: req.user.company_id,
-          section,
-          item_label: item.item_key,
-          status,
-          is_custom: false
-        });
-      });
-    }
-
-    const finalCompletion = computedTotal > 0
-      ? Math.round((computedDone / computedTotal) * 100)
-      : (completion_pct || 0);
-    const finalFlags = computedTotal > 0 ? computedFlags : (flag_count || 0);
-
+    const { notes, engineer_name, engine_hours, fuel_level } = req.body;
+    
     const { error: updateErr } = await supabase
       .from('logs')
-      .update({
-        engineer_name, engine_hours, fuel_level, notes,
-        flag_count: finalFlags,
-        completion_pct: finalCompletion
-      })
+      .update({ notes, engineer_name, engine_hours, fuel_level })
       .eq('id', existing.id);
 
     if (updateErr) throw updateErr;
 
-    if (allItems.length > 0) {
-      await supabase.from('log_check_items').delete().eq('log_id', existing.id);
-      const { error: itemErr } = await supabase.from('log_check_items').insert(allItems);
-      if (itemErr) throw itemErr;
-    }
-
-    if (Array.isArray(watches)) {
-      await supabase.from('log_watches').delete().eq('log_id', existing.id);
-      if (watches.length > 0) {
-        const { error: watchErr } = await supabase
-          .from('log_watches')
-          .insert(watches.map(w => ({
-            log_id: existing.id,
-            company_id: req.user.company_id,
-            watch_period: w.watch_period,
-            engineer_name: w.engineer_name || engineer_name,
-            engine_hours_start: w.engine_hours_start || null,
-            engine_hours_end: w.engine_hours_end || null
-          })));
-        if (watchErr) throw watchErr;
-      }
-    }
-
-    res.json({ message: 'Log sheet updated successfully', flag_count: finalFlags, completion_pct: finalCompletion });
+    res.json({ message: 'Log sheet updated successfully' });
 
   } catch (err) {
     console.error('Update log error:', err.message);
-    res.status(500).json({ error: 'Failed to update engine log sheet', detail: err.message });
+    res.status(500).json({ error: 'Failed to update engine log sheet' });
   }
 });
 
