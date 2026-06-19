@@ -1,338 +1,830 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AMC Office Dashboard</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f0;color:#1a1a1a;min-height:100vh}
-.topbar{background:#fff;border-bottom:1px solid #e5e5e0;padding:0 1rem;height:52px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
-.topbar-logo{font-size:15px;font-weight:600;display:flex;align-items:center;gap:6px}
-.topbar-right{display:flex;align-items:center;gap:12px}
-.topbar-user{font-size:13px;color:#666}
-.signout-btn{background:none;border:none;cursor:pointer;font-size:13px;color:#666;font-family:inherit;display:flex;align-items:center;gap:4px}
-.page{display:none;padding:1rem;max-width:900px;margin:0 auto}
-.page.active{display:block}
-.page-title{font-size:20px;font-weight:600;margin-bottom:1rem}
-.metrics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:1.5rem}
-.metric-card{background:#fff;border:1px solid #e5e5e0;border-radius:12px;padding:1rem}
-.metric-label{font-size:12px;color:#888;margin-bottom:4px}
-.metric-value{font-size:28px;font-weight:600;color:#1a1a1a;line-height:1}
-.metric-sub{font-size:11px;color:#aaa;margin-top:4px}
-.metric-card.alert .metric-value{color:#c0392b}
-.metric-card.ok .metric-value{color:#1D9E75}
-.card{background:#fff;border:1px solid #e5e5e0;border-radius:12px;padding:1.25rem;margin-bottom:1rem}
-.vessel-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f0f0eb;cursor:pointer}
-.vessel-row:last-child{border-bottom:none}
-.vessel-row:hover .vessel-name{color:#185FA5}
-.vessel-icon{width:36px;height:36px;border-radius:8px;background:#EBF3FF;display:flex;align-items:center;justify-content:center;color:#185FA5;font-size:18px;flex-shrink:0}
-.vessel-info{flex:1;min-width:0}
-.vessel-name{font-size:14px;font-weight:500;color:#1a1a1a}
-.vessel-meta{font-size:12px;color:#888;margin-top:2px}
-.vessel-stats{display:flex;gap:8px;align-items:center;flex-shrink:0}
-.stat-pill{font-size:11px;font-weight:600;padding:3px 8px;border-radius:6px}
-.pill-ok{background:#EAF3DE;color:#3B6D11}
-.pill-warn{background:#FAEEDA;color:#854F0B}
-.pill-danger{background:#FCEBEB;color:#A32D2D}
-.pill-gray{background:#f0f0eb;color:#666}
-.log-row{padding:10px 0;border-bottom:1px solid #f0f0eb}
-.log-row:last-child{border-bottom:none}
-.log-top{display:flex;align-items:center;justify-content:space-between}
-.log-vessel{font-size:14px;font-weight:500}
-.log-time{font-size:12px;color:#888}
-.log-bottom{display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap}
-.log-engineer{font-size:12px;color:#888}
-.flag-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f0f0eb}
-.flag-row:last-child{border-bottom:none}
-.flag-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;margin-top:1px}
-.flag-action{background:#FCEBEB;color:#A32D2D}
-.flag-info{flex:1;min-width:0}
-.flag-item{font-size:13px;font-weight:500;color:#1a1a1a}
-.flag-meta{font-size:12px;color:#888;margin-top:2px}
-.nav-tabs{display:flex;gap:0;margin-bottom:1rem;border:1px solid #e5e5e0;border-radius:8px;overflow:hidden;background:#fff}
-.nav-tab{flex:1;padding:9px;font-size:13px;font-weight:500;border:none;background:transparent;color:#666;cursor:pointer;font-family:inherit}
-.nav-tab.active{background:#185FA5;color:#fff}
-.empty-state{text-align:center;padding:2rem;color:#aaa;font-size:14px}
-.spinner{display:inline-block;width:14px;height:14px;border:2px solid #ddd;border-top-color:#185FA5;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:-2px}
-@keyframes spin{to{transform:rotate(360deg)}}
-.back-btn{background:none;border:none;cursor:pointer;color:#666;font-size:22px;padding:0;display:flex}
-.pct-bar-bg{height:6px;background:#f0f0eb;border-radius:3px;margin-top:4px}
-.pct-bar-fill{height:6px;border-radius:3px;background:#185FA5}
-.refresh-btn{background:none;border:1px solid #e5e5e0;border-radius:6px;padding:5px 10px;font-size:12px;color:#666;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:4px}
-.refresh-btn:hover{background:#f5f5f0}
-.login-wrap{max-width:420px;margin:0 auto}
-input,select{font-family:inherit}
-</style>
-</head>
-<body>
-
-<div class="topbar">
-  <div class="topbar-logo"><i class="ti ti-anchor" style="font-size:18px;color:#185FA5"></i> AMC Engine Log</div>
-  <div class="topbar-right">
-    <span class="topbar-user" id="dash-user"></span>
-    <button class="signout-btn" onclick="dashLogout()"><i class="ti ti-logout"></i> Sign out</button>
-  </div>
-</div>
-
-<!-- LOGIN -->
-<div id="page-login" class="page active">
-  <div class="login-wrap">
-    <div style="text-align:center;padding:2.5rem 0 1.5rem">
-      <div style="font-size:22px;font-weight:600">Office dashboard</div>
-      <div style="font-size:13px;color:#888;margin-top:4px">American Marine Corporation</div>
-    </div>
-    <div class="card">
-      <div style="margin-bottom:1rem">
-        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px">Email</label>
-        <input type="email" id="d-email" placeholder="your@email.com" style="width:100%;padding:10px 12px;font-size:15px;border:1px solid #ddd;border-radius:8px">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AMC Office Dashboard</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css"
+    />
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f5f5f0;
+        color: #1a1a1a;
+        min-height: 100vh;
+      }
+      .topbar {
+        background: #fff;
+        border-bottom: 1px solid #e5e5e0;
+        padding: 0 1rem;
+        height: 52px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+      .topbar-logo {
+        font-size: 15px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .topbar-right {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .topbar-user {
+        font-size: 13px;
+        color: #666;
+      }
+      .signout-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 13px;
+        color: #666;
+        font-family: inherit;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .page {
+        display: none;
+        padding: 1rem;
+        max-width: 900px;
+        margin: 0 auto;
+      }
+      .page.active {
+        display: block;
+      }
+      .page-title {
+        font-size: 20px;
+        font-weight: 600;
+        margin-bottom: 1rem;
+      }
+      .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 12px;
+        margin-bottom: 1.5rem;
+      }
+      .metric-card {
+        background: #fff;
+        border: 1px solid #e5e5e0;
+        border-radius: 12px;
+        padding: 1rem;
+      }
+      .metric-label {
+        font-size: 12px;
+        color: #888;
+        margin-bottom: 4px;
+      }
+      .metric-value {
+        font-size: 28px;
+        font-weight: 600;
+        color: #1a1a1a;
+        line-height: 1;
+      }
+      .metric-sub {
+        font-size: 11px;
+        color: #aaa;
+        margin-top: 4px;
+      }
+      .metric-card.alert .metric-value {
+        color: #c0392b;
+      }
+      .metric-card.ok .metric-value {
+        color: #1d9e75;
+      }
+      .card {
+        background: #fff;
+        border: 1px solid #e5e5e0;
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+      }
+      .vessel-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid #f0f0eb;
+        cursor: pointer;
+      }
+      .vessel-row:last-child {
+        border-bottom: none;
+      }
+      .vessel-row:hover .vessel-name {
+        color: #185fa5;
+      }
+      .vessel-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        background: #ebf3ff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #185fa5;
+        font-size: 18px;
+        flex-shrink: 0;
+      }
+      .vessel-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .vessel-name {
+        font-size: 14px;
+        font-weight: 500;
+        color: #1a1a1a;
+      }
+      .vessel-meta {
+        font-size: 12px;
+        color: #888;
+        margin-top: 2px;
+      }
+      .vessel-stats {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-shrink: 0;
+      }
+      .stat-pill {
+        font-size: 11px;
+        font-weight: 600;
+        padding: 3px 8px;
+        border-radius: 6px;
+      }
+      .pill-ok {
+        background: #eaf3de;
+        color: #3b6d11;
+      }
+      .pill-warn {
+        background: #faeeda;
+        color: #854f0b;
+      }
+      .pill-danger {
+        background: #fcebeb;
+        color: #a32d2d;
+      }
+      .pill-gray {
+        background: #f0f0eb;
+        color: #666;
+      }
+      .log-row {
+        padding: 10px 0;
+        border-bottom: 1px solid #f0f0eb;
+      }
+      .log-row:last-child {
+        border-bottom: none;
+      }
+      .log-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .log-vessel {
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .log-time {
+        font-size: 12px;
+        color: #888;
+      }
+      .log-bottom {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 4px;
+        flex-wrap: wrap;
+      }
+      .log-engineer {
+        font-size: 12px;
+        color: #888;
+      }
+      .flag-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 10px 0;
+        border-bottom: 1px solid #f0f0eb;
+      }
+      .flag-row:last-child {
+        border-bottom: none;
+      }
+      .flag-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        flex-shrink: 0;
+        margin-top: 1px;
+      }
+      .flag-action {
+        background: #fcebeb;
+        color: #a32d2d;
+      }
+      .flag-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .flag-item {
+        font-size: 13px;
+        font-weight: 500;
+        color: #1a1a1a;
+      }
+      .flag-meta {
+        font-size: 12px;
+        color: #888;
+        margin-top: 2px;
+      }
+      .nav-tabs {
+        display: flex;
+        gap: 0;
+        margin-bottom: 1rem;
+        border: 1px solid #e5e5e0;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #fff;
+      }
+      .nav-tab {
+        flex: 1;
+        padding: 9px;
+        font-size: 13px;
+        font-weight: 500;
+        border: none;
+        background: transparent;
+        color: #666;
+        cursor: pointer;
+        font-family: inherit;
+      }
+      .nav-tab.active {
+        background: #185fa5;
+        color: #fff;
+      }
+      .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: #aaa;
+        font-size: 14px;
+      }
+      .spinner {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border: 2px solid #ddd;
+        border-top-color: #185fa5;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+        vertical-align: -2px;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .back-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: #666;
+        font-size: 22px;
+        padding: 0;
+        display: flex;
+      }
+      .pct-bar-bg {
+        height: 6px;
+        background: #f0f0eb;
+        border-radius: 3px;
+        margin-top: 4px;
+      }
+      .pct-bar-fill {
+        height: 6px;
+        border-radius: 3px;
+        background: #185fa5;
+      }
+      .refresh-btn {
+        background: none;
+        border: 1px solid #e5e5e0;
+        border-radius: 6px;
+        padding: 5px 10px;
+        font-size: 12px;
+        color: #666;
+        cursor: pointer;
+        font-family: inherit;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .refresh-btn:hover {
+        background: #f5f5f0;
+      }
+      .login-wrap {
+        max-width: 420px;
+        margin: 0 auto;
+      }
+      input,
+      select {
+        font-family: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      <div class="topbar-logo">
+        <i class="ti ti-anchor" style="font-size: 18px; color: #185fa5"></i> AMC
+        Engine Log
       </div>
-      <div style="margin-bottom:1rem">
-        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px">Password</label>
-        <input type="password" id="d-pass" placeholder="••••••••" style="width:100%;padding:10px 12px;font-size:15px;border:1px solid #ddd;border-radius:8px">
+      <div class="topbar-right">
+        <span class="topbar-user" id="dash-user"></span>
+        <button class="signout-btn" onclick="dashLogout()">
+          <i class="ti ti-logout"></i> Sign out
+        </button>
       </div>
-      <div id="d-error" style="font-size:13px;color:#c0392b;margin-bottom:8px;display:none"></div>
-      <button onclick="dashLogin()" id="d-login-btn" style="width:100%;padding:12px;font-size:15px;font-weight:500;border-radius:8px;border:none;background:#185FA5;color:#fff;cursor:pointer;font-family:inherit">Sign in</button>
     </div>
-  </div>
-</div>
 
-<!-- DASHBOARD -->
-<div id="page-dash" class="page">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
-    <div class="page-title" style="margin-bottom:0">Dashboard</div>
-    <button class="refresh-btn" onclick="loadDashboard()"><i class="ti ti-refresh" style="font-size:14px"></i> Refresh</button>
-  </div>
-
-  <div class="metrics-grid">
-    <div class="metric-card"><div class="metric-label">Logs today</div><div class="metric-value" id="m-today"><span class="spinner"></span></div></div>
-    <div class="metric-card"><div class="metric-label">This week</div><div class="metric-value" id="m-week"><span class="spinner"></span></div></div>
-    <div class="metric-card" id="m-flags-card"><div class="metric-label">Flagged items</div><div class="metric-value" id="m-flags"><span class="spinner"></span></div></div>
-    <div class="metric-card"><div class="metric-label">Avg completion</div><div class="metric-value" id="m-pct"><span class="spinner"></span></div><div class="metric-sub">across all logs</div></div>
-  </div>
-
-  <div class="nav-tabs">
-    <button class="nav-tab active" onclick="switchTab('vessels',this)">Vessels</button>
-    <button class="nav-tab" onclick="switchTab('recent',this)">Recent logs</button>
-    <button class="nav-tab" onclick="switchTab('flags',this)">Flagged items</button>
-  </div>
-
-  <div id="tab-vessels">
-    <div class="card" id="vessels-list"><div class="empty-state"><span class="spinner"></span></div></div>
-  </div>
-  <div id="tab-recent" style="display:none">
-    <div class="card" id="recent-list"><div class="empty-state"><span class="spinner"></span></div></div>
-  </div>
-  <div id="tab-flags" style="display:none">
-    <div class="card" id="flags-list"><div class="empty-state"><span class="spinner"></span></div></div>
-  </div>
-</div>
-
-<!-- VESSEL DETAIL -->
-<div id="page-vessel" class="page">
-  <div style="display:flex;align-items:center;gap:10px;margin-bottom:1rem">
-    <button class="back-btn" onclick="showPage('dash')"><i class="ti ti-arrow-left"></i></button>
-    <div>
-      <div style="font-size:18px;font-weight:600" id="vd-name"></div>
-      <div style="font-size:12px;color:#888" id="vd-meta"></div>
+    <!-- LOGIN -->
+    <div id="page-login" class="page active">
+      <div class="login-wrap">
+        <div style="text-align: center; padding: 2.5rem 0 1.5rem">
+          <div style="font-size: 22px; font-weight: 600">Office dashboard</div>
+          <div style="font-size: 13px; color: #888; margin-top: 4px">
+            American Marine Corporation
+          </div>
+        </div>
+        <div class="card">
+          <div style="margin-bottom: 1rem">
+            <label
+              style="
+                font-size: 13px;
+                color: #555;
+                display: block;
+                margin-bottom: 6px;
+              "
+              >Email</label
+            >
+            <input
+              type="email"
+              id="d-email"
+              placeholder="your@email.com"
+              style="
+                width: 100%;
+                padding: 10px 12px;
+                font-size: 15px;
+                border: 1px solid #ddd;
+                border-radius: 8px;
+              "
+            />
+          </div>
+          <div style="margin-bottom: 1rem">
+            <label
+              style="
+                font-size: 13px;
+                color: #555;
+                display: block;
+                margin-bottom: 6px;
+              "
+              >Password</label
+            >
+            <input
+              type="password"
+              id="d-pass"
+              placeholder="••••••••"
+              style="
+                width: 100%;
+                padding: 10px 12px;
+                font-size: 15px;
+                border: 1px solid #ddd;
+                border-radius: 8px;
+              "
+            />
+          </div>
+          <div
+            id="d-error"
+            style="
+              font-size: 13px;
+              color: #c0392b;
+              margin-bottom: 8px;
+              display: none;
+            "
+          ></div>
+          <button
+            onclick="dashLogin()"
+            id="d-login-btn"
+            style="
+              width: 100%;
+              padding: 12px;
+              font-size: 15px;
+              font-weight: 500;
+              border-radius: 8px;
+              border: none;
+              background: #185fa5;
+              color: #fff;
+              cursor: pointer;
+              font-family: inherit;
+            "
+          >
+            Sign in
+          </button>
+        </div>
+      </div>
     </div>
-  </div>
-  <div class="card" id="vd-logs"><div class="empty-state">Loading…</div></div>
-</div>
 
-<script>
-const API = 'https://b35aec0f-4fc0-4f21-bc27-3343e53cd6fc-00-3qg8rhbs45hik.picard.replit.dev';
-let dToken = null, dUser = null, allVessels = [], allLogs = [];
+    <!-- DASHBOARD -->
+    <div id="page-dash" class="page">
+      <div
+        style="
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 1rem;
+        "
+      >
+        <div class="page-title" style="margin-bottom: 0">Dashboard</div>
+        <button class="refresh-btn" onclick="loadDashboard()">
+          <i class="ti ti-refresh" style="font-size: 14px"></i> Refresh
+        </button>
+      </div>
 
-function showPage(id) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById('page-' + id).classList.add('active');
-  window.scrollTo(0,0);
-}
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-label">Logs today</div>
+          <div class="metric-value" id="m-today">
+            <span class="spinner"></span>
+          </div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">This week</div>
+          <div class="metric-value" id="m-week">
+            <span class="spinner"></span>
+          </div>
+        </div>
+        <div class="metric-card" id="m-flags-card">
+          <div class="metric-label">Flagged items</div>
+          <div class="metric-value" id="m-flags">
+            <span class="spinner"></span>
+          </div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Avg completion</div>
+          <div class="metric-value" id="m-pct">
+            <span class="spinner"></span>
+          </div>
+          <div class="metric-sub">across all logs</div>
+        </div>
+      </div>
 
-function switchTab(tab, el) {
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  ['vessels','recent','flags'].forEach(t => {
-    document.getElementById('tab-' + t).style.display = t === tab ? 'block' : 'none';
-  });
-}
+      <div class="nav-tabs">
+        <button class="nav-tab active" onclick="switchTab('vessels',this)">
+          Vessels
+        </button>
+        <button class="nav-tab" onclick="switchTab('recent',this)">
+          Recent logs
+        </button>
+        <button class="nav-tab" onclick="switchTab('flags',this)">
+          Flagged items
+        </button>
+      </div>
 
-async function dashLogin() {
-  const email = document.getElementById('d-email').value.trim();
-  const pass = document.getElementById('d-pass').value;
-  const btn = document.getElementById('d-login-btn');
-  const err = document.getElementById('d-error');
-  err.style.display = 'none';
-  btn.textContent = 'Signing in…';
-  btn.disabled = true;
-  try {
-    const res = await fetch(API + '/api/auth/login', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({email, password: pass})
-    });
-    const data = await res.json();
-    if (!res.ok || !data.token) throw new Error(data.error || 'Login failed');
-    if (!['admin','office'].includes(data.user.role)) throw new Error('You need office or admin access to view this dashboard.');
-    dToken = data.token;
-    dUser = data.user;
-    document.getElementById('dash-user').textContent = dUser.full_name;
-    showPage('dash');
-    loadDashboard();
-  } catch(e) {
-    err.textContent = e.message;
-    err.style.display = 'block';
-  }
-  btn.textContent = 'Sign in';
-  btn.disabled = false;
-}
+      <div id="tab-vessels">
+        <div class="card" id="vessels-list">
+          <div class="empty-state"><span class="spinner"></span></div>
+        </div>
+      </div>
+      <div id="tab-recent" style="display: none">
+        <div class="card" id="recent-list">
+          <div class="empty-state"><span class="spinner"></span></div>
+        </div>
+      </div>
+      <div id="tab-flags" style="display: none">
+        <div class="card" id="flags-list">
+          <div class="empty-state"><span class="spinner"></span></div>
+        </div>
+      </div>
+    </div>
 
-async function loadDashboard() {
-  try {
-    const [vRes, lRes] = await Promise.all([
-      fetch(API + '/api/vessels', {headers: {'Authorization':'Bearer ' + dToken}}),
-      fetch(API + '/api/logs?limit=100', {headers: {'Authorization':'Bearer ' + dToken}})
-    ]);
-    const vData = await vRes.json();
-    const lData = await lRes.json();
-    allVessels = vData.vessels || vData || [];
-    allLogs = lData.logs || lData || [];
-    renderMetrics();
-    renderVessels();
-    renderRecent();
-    renderFlags();
-  } catch(e) {
-    console.error('Dashboard load error:', e);
-  }
-}
+    <!-- VESSEL DETAIL -->
+    <div id="page-vessel" class="page">
+      <div
+        style="
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 1rem;
+        "
+      >
+        <button class="back-btn" onclick="showPage('dash')">
+          <i class="ti ti-arrow-left"></i>
+        </button>
+        <div>
+          <div style="font-size: 18px; font-weight: 600" id="vd-name"></div>
+          <div style="font-size: 12px; color: #888" id="vd-meta"></div>
+        </div>
+      </div>
+      <div class="card" id="vd-logs">
+        <div class="empty-state">Loading…</div>
+      </div>
+    </div>
 
-function renderMetrics() {
-  const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
-  const weekAgo = new Date(now - 7*24*60*60*1000);
-  const todayLogs = allLogs.filter(l => (l.log_date||'').startsWith(todayStr));
-  const weekLogs = allLogs.filter(l => new Date(l.submitted_at) >= weekAgo);
-  const flagged = allLogs.reduce((s,l) => s + (parseInt(l.flag_count)||0), 0);
-  const avgPct = allLogs.length ? Math.round(allLogs.reduce((s,l) => s+(parseInt(l.completion_pct)||0),0)/allLogs.length) : 0;
-  document.getElementById('m-today').textContent = todayLogs.length;
-  document.getElementById('m-week').textContent = weekLogs.length;
-  document.getElementById('m-flags').textContent = flagged;
-  document.getElementById('m-pct').textContent = avgPct + '%';
-  document.getElementById('m-flags-card').className = 'metric-card ' + (flagged > 0 ? 'alert' : 'ok');
-}
+    <script>
+      const API =
+        "https://b35aec0f-4fc0-4f21-bc27-3343e53cd6fc-00-3qg8rhbs45hik.picard.replit.dev";
+      let dToken = null,
+        dUser = null,
+        allVessels = [],
+        allLogs = [];
 
-function renderVessels() {
-  const el = document.getElementById('vessels-list');
-  if (!allVessels.length) { el.innerHTML = '<div class="empty-state">No vessels found.</div>'; return; }
-  el.innerHTML = allVessels.map(v => {
-    const vLogs = allLogs.filter(l => l.vessel_id === v.id);
-    const last = [...vLogs].sort((a,b) => new Date(b.submitted_at)-new Date(a.submitted_at))[0];
-    const flags = vLogs.reduce((s,l) => s+(parseInt(l.flag_count)||0),0);
-    const avgPct = vLogs.length ? Math.round(vLogs.reduce((s,l) => s+(parseInt(l.completion_pct)||0),0)/vLogs.length) : null;
-    const lastDate = last ? new Date(last.submitted_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : 'No logs yet';
-    const pillClass = flags > 0 ? 'pill-warn' : vLogs.length ? 'pill-ok' : 'pill-gray';
-    const pillText = flags > 0 ? flags + ' flag' + (flags>1?'s':'') : vLogs.length ? 'All clear' : 'No logs';
-    return `<div class="vessel-row" onclick="openVesselDetail('${v.id}','${v.name.replace(/'/g,"\\'")}')">
+      function showPage(id) {
+        document
+          .querySelectorAll(".page")
+          .forEach((p) => p.classList.remove("active"));
+        document.getElementById("page-" + id).classList.add("active");
+        window.scrollTo(0, 0);
+      }
+
+      function switchTab(tab, el) {
+        document
+          .querySelectorAll(".nav-tab")
+          .forEach((t) => t.classList.remove("active"));
+        el.classList.add("active");
+        ["vessels", "recent", "flags"].forEach((t) => {
+          document.getElementById("tab-" + t).style.display =
+            t === tab ? "block" : "none";
+        });
+      }
+
+      async function dashLogin() {
+        const email = document.getElementById("d-email").value.trim();
+        const pass = document.getElementById("d-pass").value;
+        const btn = document.getElementById("d-login-btn");
+        const err = document.getElementById("d-error");
+        err.style.display = "none";
+        btn.textContent = "Signing in…";
+        btn.disabled = true;
+        try {
+          const res = await fetch(API + "/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password: pass }),
+          });
+          const data = await res.json();
+          if (!res.ok || !data.token)
+            throw new Error(data.error || "Login failed");
+          if (!["admin", "office"].includes(data.user.role))
+            throw new Error(
+              "You need office or admin access to view this dashboard.",
+            );
+          dToken = data.token;
+          dUser = data.user;
+          document.getElementById("dash-user").textContent = dUser.full_name;
+          showPage("dash");
+          loadDashboard();
+        } catch (e) {
+          err.textContent = e.message;
+          err.style.display = "block";
+        }
+        btn.textContent = "Sign in";
+        btn.disabled = false;
+      }
+
+      async function loadDashboard() {
+        try {
+          const [vRes, lRes] = await Promise.all([
+            fetch(API + "/api/vessels", {
+              headers: { Authorization: "Bearer " + dToken },
+            }),
+            fetch(API + "/api/logs?limit=100", {
+              headers: { Authorization: "Bearer " + dToken },
+            }),
+          ]);
+          const vData = await vRes.json();
+          const lData = await lRes.json();
+          allVessels = vData.vessels || vData || [];
+          allLogs = lData.logs || lData || [];
+          renderMetrics();
+          renderVessels();
+          renderRecent();
+          renderFlags();
+        } catch (e) {
+          console.error("Dashboard load error:", e);
+        }
+      }
+
+      function renderMetrics() {
+        const now = new Date();
+        const todayStr = now.toISOString().split("T")[0];
+        const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+        const todayLogs = allLogs.filter((l) =>
+          (l.log_date || "").startsWith(todayStr),
+        );
+        const weekLogs = allLogs.filter(
+          (l) => new Date(l.submitted_at) >= weekAgo,
+        );
+        const flagged = allLogs.reduce(
+          (s, l) => s + (parseInt(l.flag_count) || 0),
+          0,
+        );
+        const avgPct = allLogs.length
+          ? Math.round(
+              allLogs.reduce(
+                (s, l) => s + (parseInt(l.completion_pct) || 0),
+                0,
+              ) / allLogs.length,
+            )
+          : 0;
+        document.getElementById("m-today").textContent = todayLogs.length;
+        document.getElementById("m-week").textContent = weekLogs.length;
+        document.getElementById("m-flags").textContent = flagged;
+        document.getElementById("m-pct").textContent = avgPct + "%";
+        document.getElementById("m-flags-card").className =
+          "metric-card " + (flagged > 0 ? "alert" : "ok");
+      }
+
+      function renderVessels() {
+        const el = document.getElementById("vessels-list");
+        if (!allVessels.length) {
+          el.innerHTML = '<div class="empty-state">No vessels found.</div>';
+          return;
+        }
+        el.innerHTML = allVessels
+          .map((v) => {
+            const vLogs = allLogs.filter((l) => l.vessel_id === v.id);
+            const last = [...vLogs].sort(
+              (a, b) => new Date(b.submitted_at) - new Date(a.submitted_at),
+            )[0];
+            const flags = vLogs.reduce(
+              (s, l) => s + (parseInt(l.flag_count) || 0),
+              0,
+            );
+            const avgPct = vLogs.length
+              ? Math.round(
+                  vLogs.reduce(
+                    (s, l) => s + (parseInt(l.completion_pct) || 0),
+                    0,
+                  ) / vLogs.length,
+                )
+              : null;
+            const lastDate = last
+              ? new Date(last.submitted_at).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                })
+              : "No logs yet";
+            const pillClass =
+              flags > 0 ? "pill-warn" : vLogs.length ? "pill-ok" : "pill-gray";
+            const pillText =
+              flags > 0
+                ? flags + " flag" + (flags > 1 ? "s" : "")
+                : vLogs.length
+                  ? "All clear"
+                  : "No logs";
+            return `<div class="vessel-row" onclick="openVesselDetail('${v.id}','${v.name.replace(/'/g, "\\'")}')">
       <div class="vessel-icon"><i class="ti ti-ship"></i></div>
       <div class="vessel-info">
         <div class="vessel-name">${v.name}</div>
-        <div class="vessel-meta">Last log: ${lastDate}${avgPct!==null?' &mdash; avg '+avgPct+'% complete':''}</div>
-        ${avgPct!==null?`<div class="pct-bar-bg"><div class="pct-bar-fill" style="width:${avgPct}%"></div></div>`:''}
+        <div class="vessel-meta">Last log: ${lastDate}${avgPct !== null ? " &mdash; avg " + avgPct + "% complete" : ""}</div>
+        ${avgPct !== null ? `<div class="pct-bar-bg"><div class="pct-bar-fill" style="width:${avgPct}%"></div></div>` : ""}
       </div>
       <div class="vessel-stats">
         <span class="stat-pill ${pillClass}">${pillText}</span>
         <i class="ti ti-chevron-right" style="color:#ccc;font-size:16px"></i>
       </div>
     </div>`;
-  }).join('');
-}
+          })
+          .join("");
+      }
 
-function renderRecent() {
-  const el = document.getElementById('recent-list');
-  const sorted = [...allLogs].sort((a,b) => new Date(b.submitted_at)-new Date(a.submitted_at)).slice(0,20);
-  if (!sorted.length) { el.innerHTML = '<div class="empty-state">No logs submitted yet.</div>'; return; }
-  el.innerHTML = sorted.map(l => {
-    const vessel = allVessels.find(v => v.id === l.vessel_id);
-    const vName = vessel ? vessel.name : 'Unknown vessel';
-    const d = new Date(l.submitted_at);
-    const timeStr = d.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' at ' + d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
-    const pct = parseInt(l.completion_pct)||0;
-    const pillClass = pct===100?'pill-ok':pct>=75?'pill-warn':'pill-danger';
-    return `<div class="log-row">
+      function renderRecent() {
+        const el = document.getElementById("recent-list");
+        const sorted = [...allLogs]
+          .sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at))
+          .slice(0, 20);
+        if (!sorted.length) {
+          el.innerHTML =
+            '<div class="empty-state">No logs submitted yet.</div>';
+          return;
+        }
+        el.innerHTML = sorted
+          .map((l) => {
+            const vessel = allVessels.find((v) => v.id === l.vessel_id);
+            const vName = vessel ? vessel.name : "Unknown vessel";
+            const d = new Date(l.submitted_at);
+            const timeStr =
+              d.toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+              }) +
+              " at " +
+              d.toLocaleTimeString("en-US", {
+                hour: "numeric",
+                minute: "2-digit",
+              });
+            const pct = parseInt(l.completion_pct) || 0;
+            const pillClass =
+              pct === 100 ? "pill-ok" : pct >= 75 ? "pill-warn" : "pill-danger";
+            return `<div class="log-row">
       <div class="log-top">
         <span class="log-vessel">${vName}</span>
         <span class="log-time">${timeStr}</span>
       </div>
       <div class="log-bottom">
-        <span class="log-engineer"><i class="ti ti-user" style="font-size:12px"></i> ${l.engineer_name||'Unknown'}</span>
+        <span class="log-engineer"><i class="ti ti-user" style="font-size:12px"></i> ${l.engineer_name || "Unknown"}</span>
         <span class="stat-pill ${pillClass}" style="font-size:10px">${pct}% complete</span>
-        ${parseInt(l.flag_count)>0?`<span class="stat-pill pill-warn" style="font-size:10px">${l.flag_count} flag${l.flag_count>1?'s':''}</span>`:''}
+        ${parseInt(l.flag_count) > 0 ? `<span class="stat-pill pill-warn" style="font-size:10px">${l.flag_count} flag${l.flag_count > 1 ? "s" : ""}</span>` : ""}
       </div>
     </div>`;
-  }).join('');
-}
+          })
+          .join("");
+      }
 
-function renderFlags() {
-  const el = document.getElementById('flags-list');
-  const flaggedLogs = allLogs.filter(l => parseInt(l.flag_count)>0)
-    .sort((a,b) => new Date(b.submitted_at)-new Date(a.submitted_at));
-  if (!flaggedLogs.length) {
-    el.innerHTML = '<div class="empty-state" style="color:#1D9E75"><i class="ti ti-circle-check" style="font-size:24px;display:block;margin-bottom:8px"></i>No flagged items — all clear</div>';
-    return;
-  }
-  el.innerHTML = flaggedLogs.map(l => {
-    const vessel = allVessels.find(v => v.id === l.vessel_id);
-    const vName = vessel ? vessel.name : 'Unknown vessel';
-    const d = new Date(l.submitted_at);
-    return `<div class="flag-row">
+      function renderFlags() {
+        const el = document.getElementById("flags-list");
+        const flaggedLogs = allLogs
+          .filter((l) => parseInt(l.flag_count) > 0)
+          .sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at));
+        if (!flaggedLogs.length) {
+          el.innerHTML =
+            '<div class="empty-state" style="color:#1D9E75"><i class="ti ti-circle-check" style="font-size:24px;display:block;margin-bottom:8px"></i>No flagged items — all clear</div>';
+          return;
+        }
+        el.innerHTML = flaggedLogs
+          .map((l) => {
+            const vessel = allVessels.find((v) => v.id === l.vessel_id);
+            const vName = vessel ? vessel.name : "Unknown vessel";
+            const d = new Date(l.submitted_at);
+            return `<div class="flag-row">
       <div class="flag-icon flag-action"><i class="ti ti-alert-triangle"></i></div>
       <div class="flag-info">
-        <div class="flag-item">${vName} — ${l.flag_count} item${l.flag_count>1?'s':''} flagged</div>
-        <div class="flag-meta">${l.engineer_name||'Unknown'} &mdash; ${d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>
-        ${l.notes?`<div style="font-size:12px;color:#555;margin-top:4px;font-style:italic">"${l.notes.slice(0,120)}${l.notes.length>120?'…':''}"</div>`:''}
+        <div class="flag-item">${vName} — ${l.flag_count} item${l.flag_count > 1 ? "s" : ""} flagged</div>
+        <div class="flag-meta">${l.engineer_name || "Unknown"} &mdash; ${d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</div>
+        ${l.notes ? `<div style="font-size:12px;color:#555;margin-top:4px;font-style:italic">"${l.notes.slice(0, 120)}${l.notes.length > 120 ? "…" : ""}"</div>` : ""}
       </div>
     </div>`;
-  }).join('');
-}
+          })
+          .join("");
+      }
 
-function openVesselDetail(vesselId, vesselName) {
-  document.getElementById('vd-name').textContent = vesselName;
-  const vLogs = allLogs.filter(l => l.vessel_id === vesselId)
-    .sort((a,b) => new Date(b.submitted_at)-new Date(a.submitted_at));
-  document.getElementById('vd-meta').textContent = vLogs.length + ' log' + (vLogs.length!==1?'s':'') + ' total';
-  const el = document.getElementById('vd-logs');
-  if (!vLogs.length) { el.innerHTML = '<div class="empty-state">No logs for this vessel yet.</div>'; showPage('vessel'); return; }
-  el.innerHTML = vLogs.map(l => {
-    const d = new Date(l.submitted_at);
-    const pct = parseInt(l.completion_pct)||0;
-    const pillClass = pct===100?'pill-ok':pct>=75?'pill-warn':'pill-danger';
-    return `<div class="log-row">
+      function openVesselDetail(vesselId, vesselName) {
+        document.getElementById("vd-name").textContent = vesselName;
+        const vLogs = allLogs
+          .filter((l) => l.vessel_id === vesselId)
+          .sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at));
+        document.getElementById("vd-meta").textContent =
+          vLogs.length + " log" + (vLogs.length !== 1 ? "s" : "") + " total";
+        const el = document.getElementById("vd-logs");
+        if (!vLogs.length) {
+          el.innerHTML =
+            '<div class="empty-state">No logs for this vessel yet.</div>';
+          showPage("vessel");
+          return;
+        }
+        el.innerHTML = vLogs
+          .map((l) => {
+            const d = new Date(l.submitted_at);
+            const pct = parseInt(l.completion_pct) || 0;
+            const pillClass =
+              pct === 100 ? "pill-ok" : pct >= 75 ? "pill-warn" : "pill-danger";
+            return `<div class="log-row">
       <div class="log-top">
-        <span style="font-size:14px">${d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'})}</span>
+        <span style="font-size:14px">${d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}</span>
         <span class="stat-pill ${pillClass}" style="font-size:10px">${pct}%</span>
       </div>
       <div class="log-bottom" style="margin-top:4px">
-        <span class="log-engineer"><i class="ti ti-user" style="font-size:12px"></i> ${l.engineer_name||'Unknown'}</span>
-        ${parseInt(l.flag_count)>0?`<span class="stat-pill pill-warn" style="font-size:10px">${l.flag_count} flag${l.flag_count>1?'s':''}</span>`:'<span style="font-size:11px;color:#aaa">No flags</span>'}
-        ${l.notes?'<span style="font-size:11px;color:#888;font-style:italic">Has notes</span>':''}
+        <span class="log-engineer"><i class="ti ti-user" style="font-size:12px"></i> ${l.engineer_name || "Unknown"}</span>
+        ${parseInt(l.flag_count) > 0 ? `<span class="stat-pill pill-warn" style="font-size:10px">${l.flag_count} flag${l.flag_count > 1 ? "s" : ""}</span>` : '<span style="font-size:11px;color:#aaa">No flags</span>'}
+        ${l.notes ? '<span style="font-size:11px;color:#888;font-style:italic">Has notes</span>' : ""}
       </div>
     </div>`;
-  }).join('');
-  showPage('vessel');
-}
+          })
+          .join("");
+        showPage("vessel");
+      }
 
-function dashLogout() {
-  dToken = null; dUser = null;
-  document.getElementById('d-email').value = '';
-  document.getElementById('d-pass').value = '';
-  showPage('login');
-}
+      function dashLogout() {
+        dToken = null;
+        dUser = null;
+        document.getElementById("d-email").value = "";
+        document.getElementById("d-pass").value = "";
+        showPage("login");
+      }
 
-document.getElementById('d-pass').addEventListener('keydown', e => {
-  if (e.key === 'Enter') dashLogin();
-});
-</script>
-</body>
+      document.getElementById("d-pass").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") dashLogin();
+      });
+    </script>
+  </body>
 </html>
