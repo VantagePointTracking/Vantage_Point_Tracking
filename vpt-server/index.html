@@ -2172,61 +2172,91 @@ function closeTripAction() {
 // PRE-DEPARTURE
 // ═══════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════
+// PRE-DEPARTURE (BULLETPROOF RENDERING)
+// ═══════════════════════════════════════════════════════════════
+
 function buildPDChecks(sectionId, items) {
   const el = document.getElementById(sectionId);
   if (!el) return;
   el.innerHTML = '';
+  
   items.forEach((item, i) => {
     const key = sectionId + '_' + i;
     pdCheckState[key] = {checked: false, flag: 'ok'};
+    
+    // Create a clean, flex container for the row
     const row = document.createElement('div');
     row.className = 'check-item';
+    row.style.display = 'flex';
+    row.style.justifyContent = 'space-between';
+    row.style.alignItems = 'flex-start';
+    row.style.gap = '10px';
+    row.style.padding = '10px 0';
+    row.style.borderBottom = '1px solid var(--border)';
+
+    // Left side (Checkbox + Label)
+    const leftGroup = document.createElement('div');
+    leftGroup.style.display = 'flex';
+    leftGroup.style.alignItems = 'flex-start';
+    leftGroup.style.gap = '10px';
+    leftGroup.style.flex = '1';
+
     const cb = document.createElement('input');
     cb.type = 'checkbox';
     cb.id = 'pd_chk_' + key;
-    cb.addEventListener('change', function() { pdToggleCheck(key, this.checked); });
+    cb.style.width = '20px';
+    cb.style.height = '20px';
+    cb.style.cursor = 'pointer';
+    cb.style.marginTop = '2px';
+    
     const lbl = document.createElement('label');
     lbl.htmlFor = 'pd_chk_' + key;
     lbl.textContent = item;
+    lbl.style.cursor = 'pointer';
+    lbl.style.margin = '0';
+    lbl.style.fontSize = '14px';
+    lbl.style.color = 'var(--cream)';
+    lbl.style.lineHeight = '1.4';
+
+    cb.addEventListener('change', function() { pdToggleCheck(key, this.checked); });
+    
+    leftGroup.appendChild(cb);
+    leftGroup.appendChild(lbl);
+
+    // Right side (Dropdown)
     const sel = document.createElement('select');
     sel.className = 'flag-select';
     sel.id = 'pd_flag_' + key;
-    sel.style.cssText = 'opacity:0;pointer-events:none;transition:opacity 0.15s';
+    sel.style.display = 'none'; // Completely hidden (removes the invisible shield!)
+    sel.style.width = '130px';
+    sel.style.padding = '6px';
+    sel.style.backgroundColor = 'var(--surface2)';
+    sel.style.color = 'var(--cream)';
+    sel.style.border = '1px solid var(--border)';
+    sel.style.borderRadius = '6px';
+    
     sel.innerHTML = '<option value="ok">OK</option><option value="monitor">Monitor</option><option value="action">Action needed</option>';
     sel.addEventListener('change', function() { pdSetFlag(key, this.value); });
-    row.appendChild(cb);
-    row.appendChild(lbl);
+    
+    row.appendChild(leftGroup);
     row.appendChild(sel);
     el.appendChild(row);
   });
+  
   updatePDProgress();
 }
-
 
 function pdToggleCheck(key, checked) {
   pdCheckState[key].checked = checked;
   
-  // This makes the OK/Monitor/Action dropdown visible when checked!
+  // Hard display toggle instead of opacity
   const sel = document.getElementById('pd_flag_' + key);
   if (sel) {
-    sel.style.opacity = checked ? '1' : '0';
-    sel.style.pointerEvents = checked ? 'auto' : 'none';
+    sel.style.display = checked ? 'block' : 'none';
   }
   
   updatePDProgress();
-}
-
-function pdSetFlag(key, val) { if (pdCheckState[key]) pdCheckState[key].flag = val; }
-
-
-function updatePDProgress() {
-  const total = Object.keys(pdCheckState).length;
-  const done = Object.values(pdCheckState).filter(c => c.checked).length;
-  const badge = document.getElementById('pd-progress-badge');
-  if (badge) {
-    badge.textContent = done + ' / ' + total;
-    badge.className = 'badge ' + (done === total ? 'badge-ok' : 'badge-flag');
-  }
 }
 
 async function startPredeparture() {
