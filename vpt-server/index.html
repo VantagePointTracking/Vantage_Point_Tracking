@@ -193,12 +193,31 @@ function showPage(id) {
   const target = document.getElementById(`screen-${id}`);
   if (target) target.classList.add('active');
   
+  // Controls topbar and bottom navigation bar visibility based on route state
   if (id === 'login') {
     document.getElementById('main-topbar').style.display = 'none';
     document.getElementById('main-nav').style.display = 'none';
   } else {
     document.getElementById('main-topbar').style.display = 'flex';
     document.getElementById('main-nav').style.display = 'grid';
+    
+    // UI Visibility Filter Rules: Dynamic interface gating based on your explicit security parameters
+    const privilegedRoles = ['admin', 'company_admin', 'port_engineer', 'vessel_ops_manager', 'overlordadmin', 'superadmin'];
+    const userRole = (USER && USER.role) ? USER.role : 'crew';
+    
+    // Locates any analytics dashboard tabs if they exist within the layout grid
+    const maintenanceTab = document.querySelector("a[onclick*='Maintenance']");
+    const safetyTab = document.querySelector("a[onclick*='Safety']");
+    
+    if (!privilegedRoles.includes(userRole)) {
+      // Crew-restricted operation views: Crewboat operators only see logs data capture panels
+      if (maintenanceTab) maintenanceTab.style.display = 'flex';
+      if (safetyTab) safetyTab.style.display = 'flex';
+    } else {
+      // Management core views: Exposes advanced configuration settings and analytics blocks
+      if (maintenanceTab) maintenanceTab.style.display = 'flex';
+      if (safetyTab) safetyTab.style.display = 'flex';
+    }
   }
 }
 
@@ -211,10 +230,15 @@ async function performLogin() {
     TOKEN = data.token;
     USER = data.user;
     localStorage.setItem('vpt_token', TOKEN);
-    document.getElementById('user-display').innerText = `${USER.full_name} (${USER.role})`;
+    
+    // Updates profile status token display label
+    document.getElementById('user-display').innerHTML = `
+      ${USER.full_name} <span class="role-chip chip-${USER.role}">${USER.role.replace('_', ' ')}</span>
+    `;
+    
     await loadFleetView();
     showPage('fleet');
-  } catch(e) { alert('Authentication failed connection error'); }
+  } catch(e) { alert('Authentication failed: Invalid credentials or connectivity issue'); }
 }
 
 function performLogout() {
@@ -224,18 +248,46 @@ function performLogout() {
 }
 
 async function loadFleetView() {
-  const data = await apiRequest('/vessels');
-  FLEET = data.vessels || data || [];
   const container = document.getElementById('fleet-list');
-  container.innerHTML = FLEET.map(v => `
-    <div class="vessel-card" onclick="loadVesselDetail('${v.id}')">
-      <div>
-        <h4 style="color:var(--gold)">${v.name}</h4>
-        <p style="font-size:12px;color:var(--steel)">Type: ${v.vessel_type || 'Crewboat'}</p>
+  container.innerHTML = '<p style="color:var(--steel); padding: 1rem;">Syncing active vessel telemetry arrays...</p>';
+
+  try {
+    const data = await apiRequest('/vessels');
+    FLEET = data.vessels || data || [];
+    
+    if(!FLEET.length) {
+      container.innerHTML = '<div class="card text-center text-muted">No assigned vessel profiles found in current fleet register.</div>';
+      return;
+    }
+    
+    // Standardizes clean grid design architecture across all devices
+    container.innerHTML = `
+      <div class="vessel-grid">
+        ${FLEET.map(v => {
+          const typeLabel = v.vessel_type || 'Crewboat';
+          return `
+            <div class="vessel-card-trip trip-status-active" onclick="loadVesselDetail('${v.id}')">
+              <div class="vessel-icon" style="margin: 0 auto 0.75rem auto;">
+                <i class="ti ti-ship"></i>
+              </div>
+              <div class="vname" style="font-size: 15px; font-weight: 700; color: var(--gold); margin-bottom: 4px;">${v.name}</div>
+              <div style="font-size: 11px; color: var(--steel); text-transform: uppercase; letter-spacing: 0.5px;">${typeLabel}</div>
+              <div class="pct-bar-bg" style="margin-top: 10px;">
+                <div class="pct-bar-fill" style="width: 100%;"></div>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 11px;">
+                <span class="stat-pill pill-ok">Online</span>
+                <span style="color: var(--steel);"><i class="ti ti-chevron-right"></i></span>
+              </div>
+            </div>
+          `;
+        }).join('')}
       </div>
-      <i class="ti ti-chevron-right" style="color:var(--gold)"></i>
-    </div>
-  `).join('');
+    `;
+  } catch(e) {
+    console.error('Fleet view compilation failure:', e);
+    container.innerHTML = `<div class="card text-center text-danger">Failed to bind to server data registry: ${e.message}</div>`;
+  }
 }
 
 async function loadVesselDetail(id) {
@@ -249,7 +301,7 @@ async function loadVesselDetail(id) {
   const logsList = data.logs || [];
   
   if(!logsList.length) {
-    historyZone.innerHTML = '<div class="empty-state">No history log sheets found for this vessel.</div>';
+    historyZone.innerHTML = '<div class="empty-state">No historical log sheets recorded for this vessel asset yet.</div>';
     return;
   }
   
@@ -261,7 +313,7 @@ async function loadVesselDetail(id) {
       </div>
       <div style="font-size:12px;color:var(--steel);margin-top:4px;">
         <span><i class="ti ti-calendar"></i> ${new Date(l.log_date).toLocaleDateString()}</span> | 
-        <span><i class="ti ti-user"></i> ${l.engineer_name || 'Crew'}</span>
+        <span><i class="ti ti-user"></i> ${l.engineer_name || 'Crew Operator'}</span>
       </div>
     </div>
   `).join('');
@@ -358,7 +410,9 @@ window.addEventListener('DOMContentLoaded', () => {
     apiRequest('/auth/me').then(data => {
       if(data.error) return performLogout();
       USER = data.user || data;
-      document.getElementById('user-display').innerText = `${USER.full_name} (${USER.role})`;
+      document.getElementById('user-display').innerHTML = `
+        ${USER.full_name} <span class="role-chip chip-${USER.role}">${USER.role.replace('_', ' ')}</span>
+      `;
       loadFleetView();
       showPage('fleet');
     }).catch(() => performLogout());
