@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Vantage Point Tracking</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
 <style>
@@ -14,441 +14,748 @@
   --border:#333333;
 }
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--black);color:var(--cream);min-height:100vh}
-.screen{display:none;padding:1rem;max-width:720px;margin:0 auto;padding-bottom:80px}
+.screen{display:none;padding:1rem;max-width:720px;margin:0 auto}
 .screen.active{display:block}
 
 /* TOPBAR */
-.topbar-main{background:var(--surface);border-bottom:1px solid var(--border);padding:0 1rem;height:56px;display:none;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
-.brand{font-weight:700;letter-spacing:1px;color:var(--gold);display:flex;align-items:center;gap:0.5rem}
+.topbar-main{background:var(--surface);border-bottom:1px solid var(--border);padding:0 1rem;height:56px;display:none;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
+.topbar-main.visible{display:flex}
+.topbar-logo{display:flex;align-items:center;gap:10px}
+.topbar-logo img{height:36px;width:auto}
+.topbar-logo-text{font-size:13px;font-weight:600;color:var(--gold);letter-spacing:0.5px;line-height:1.2}
+.topbar-logo-sub{font-size:10px;color:var(--steel);font-weight:400}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.topbar-user{font-size:13px;color:var(--steel)}
+.role-chip{font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px}
+.chip-overlordadmin{background:rgba(192,57,43,0.2);color:#E74C3C;border:1px solid rgba(192,57,43,0.4)}
+.chip-company_admin{background:rgba(201,168,76,0.15);color:var(--gold)}
+.chip-port_engineer{background:rgba(52,152,219,0.15);color:#3498DB}
+.chip-vessel_ops_manager{background:rgba(142,68,173,0.15);color:#9B59B6}
+.chip-office{background:rgba(107,114,128,0.15);color:var(--steel)}
+.chip-crew{background:rgba(39,174,96,0.15);color:#27AE60}
+.chip-admin{background:rgba(201,168,76,0.15);color:var(--gold)}
+.chip-superadmin{background:rgba(192,57,43,0.2);color:#E74C3C}
+.signout-btn{background:none;border:none;cursor:pointer;font-size:13px;color:var(--steel);font-family:inherit;display:flex;align-items:center;gap:4px}
+.signout-btn:hover{color:var(--cream)}
 
-/* GLOBAL NAV */
-.nav-grid{display:grid;grid-template-columns:repeat(5,1fr);background:var(--surface);border-top:1px solid var(--border);position:fixed;bottom:0;left:0;right:0;height:64px;display:none;z-index:100;padding-bottom:env(safe-area-inset-bottom)}
-.nav-item{display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--steel);text-decoration:none;font-size:10px;gap:2px;cursor:pointer}
-.nav-item.active{color:var(--gold)}
-.nav-item i{font-size:20px}
+/* CARDS */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;margin-bottom:1rem}
 
-/* DYNAMIC STATUS BOARD GRIDS */
-.vessel-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;margin-top:0.5rem}
-.vessel-card-trip{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem;text-align:center;position:relative;cursor:pointer}
-.vessel-icon{width:48px;height:48px;border-radius:50%;background:var(--surface2);color:var(--gold);display:flex;align-items:center;justify-content:center;margin:0 auto 0.75rem auto;font-size:20px;border:1px solid var(--border)}
-.vname{font-size:16px;font-weight:700;color:var(--cream);margin-bottom:2px}
-.pct-bar-bg{background:var(--surface2);height:6px;border-radius:3px;width:100%;margin:0.75rem 0;overflow:hidden}
-.pct-bar-fill{background:var(--gold);height:100%;border-radius:3px;width:100%}
+/* BUTTONS */
+.btn{width:100%;padding:12px;font-size:15px;font-weight:500;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--cream);cursor:pointer;font-family:inherit}
+.btn:hover{background:#3a3a3a;border-color:var(--gold)}
+.btn-primary{background:var(--gold);color:var(--black);border-color:var(--gold)}
+.btn-primary:hover{background:var(--gold-dark);border-color:var(--gold-dark)}
+.btn-sm{width:auto;padding:6px 12px;font-size:13px;margin:0}
+.error-msg{font-size:13px;color:#E74C3C;margin-top:8px;display:none}
 
-/* METRIC ROW BANNER */
-.dash-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0.75rem;margin-bottom:1.25rem}
-.metric-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:0.75rem;text-align:center}
-.metric-val{font-size:20px;font-weight:700;color:var(--cream);margin-bottom:2px}
-.metric-label{font-size:10px;color:var(--steel);text-transform:uppercase;letter-spacing:0.5px}
-
-/* FORM ELEMENTS */
-.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:1rem}
-.row{display:flex;flex-wrap:wrap;margin:0 -0.5rem}
-.col-md-6{width:50%;padding:0 0.5rem}
-.col-md-3{width:25%;padding:0 0.5rem}
-.col-6{width:50%;padding:0 0.5rem}
-.col-12{width:100%;padding:0 0.5rem}
-.g-2{margin:0 -0.25rem}.g-2 > [class*="col-"]{padding:0 0.25rem;margin-bottom:0.5rem}
-
-.btn{background:var(--surface2);color:var(--cream);border:1px solid var(--border);padding:0.75rem 1rem;border-radius:6px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:0.5rem;width:100%}
-.btn-gold{background:var(--gold);color:var(--black);border:none;font-weight:600}
-.btn:disabled{opacity:0.5;cursor:not-allowed}
-
+/* FORMS */
 .form-group{margin-bottom:1rem}
-.form-group label{display:block;margin-bottom:0.25rem;font-size:12px;color:var(--steel);text-transform:uppercase;letter-spacing:0.5px}
-.form-control{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--cream);padding:0.75rem;border-radius:6px;font-size:14px}
-.form-control:focus{outline:none;border-color:var(--gold)}
+label{font-size:13px;color:var(--steel);display:block;margin-bottom:6px}
+input,select,textarea{width:100%;padding:10px 12px;font-size:15px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--cream);font-family:inherit;appearance:none}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--gold)}
+input::placeholder,textarea::placeholder{color:var(--steel)}
+select option{background:var(--surface2);color:var(--cream)}
 
-.stat-pill{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600}
-.pill-ok{background:rgba(39,174,96,0.15);color:var(--green)}
+/* NAV TABS */
+.nav-tabs{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface);margin-bottom:1rem}
+.nav-tab{flex:1;padding:9px;font-size:13px;font-weight:500;border:none;background:transparent;color:var(--steel);cursor:pointer;font-family:inherit}
+.nav-tab.active{background:var(--gold);color:var(--black)}
+
+/* VESSEL GRID */
+.vessel-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:1rem}
+.vessel-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem 1rem;text-align:center;cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s}
+.vessel-card:hover{border-color:var(--gold);box-shadow:0 2px 12px rgba(201,168,76,0.15)}
+.vessel-card i{font-size:30px;color:var(--gold);display:block;margin-bottom:8px}
+.vessel-card .vname{font-size:13px;font-weight:500;color:var(--cream);line-height:1.3}
+
+/* CHECKLIST */
+.section-header{font-size:14px;font-weight:600;color:var(--gold);margin:1.5rem 0 0.75rem;padding-bottom:6px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px}
+.check-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.check-item:last-child{border-bottom:none}
+.check-item label{font-size:14px;color:var(--cream);margin:0;flex:1;cursor:pointer;line-height:1.4}
+.check-item input[type=checkbox]{width:18px;height:18px;flex-shrink:0;cursor:pointer;accent-color:var(--gold)}
+.flag-select{font-size:12px;padding:4px 8px;width:auto;border-radius:6px;flex-shrink:0;background:var(--surface2);color:var(--cream);border:1px solid var(--border)}
+.reading-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.reading-row.three{grid-template-columns:1fr 1fr 1fr}
+.reading-label{font-size:12px;color:var(--steel);margin-bottom:4px}
+.reading-input{padding:8px 10px;font-size:14px}
+.topbar{display:flex;align-items:center;gap:12px;padding:0.75rem 0 1rem}
+.topbar-title{font-size:17px;font-weight:600;color:var(--cream);flex:1}
+.back-btn{background:none;border:none;cursor:pointer;color:var(--steel);font-size:24px;padding:0;display:flex;align-items:center}
+.back-btn:hover{color:var(--gold)}
+.badge{display:inline-block;font-size:11px;padding:3px 10px;border-radius:6px;font-weight:600}
+.badge-ok{background:rgba(39,174,96,0.15);color:#27AE60}
+.badge-flag{background:rgba(230,126,34,0.15);color:var(--amber)}
+.submit-bar{position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--border);padding:1rem;margin:1.5rem -1.5rem -1.5rem;border-radius:0 0 12px 12px}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(201,168,76,0.3);border-top-color:var(--black);border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:-3px;margin-right:6px}
+.spinner-dark{border-color:rgba(201,168,76,0.3);border-top-color:var(--gold)}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* METRICS */
+.metrics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:1.5rem}
+.metric-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1rem}
+.metric-label{font-size:12px;color:var(--steel);margin-bottom:4px}
+.metric-value{font-size:28px;font-weight:600;line-height:1;color:var(--cream)}
+.metric-sub{font-size:11px;color:var(--steel);margin-top:4px}
+.metric-alert .metric-value{color:var(--red)}
+.metric-ok .metric-value{color:var(--green)}
+
+/* VESSEL ROWS */
+.vessel-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer}
+.vessel-row:last-child{border-bottom:none}
+.vessel-row:hover .vrow-name{color:var(--gold)}
+.vessel-icon{width:36px;height:36px;border-radius:8px;background:rgba(201,168,76,0.1);display:flex;align-items:center;justify-content:center;color:var(--gold);font-size:18px;flex-shrink:0}
+.vrow-name{font-size:14px;font-weight:500;color:var(--cream)}
+.vrow-meta{font-size:12px;color:var(--steel);margin-top:2px}
+.stat-pill{font-size:11px;font-weight:600;padding:3px 8px;border-radius:6px}
+.pill-ok{background:rgba(39,174,96,0.15);color:#27AE60}
 .pill-warn{background:rgba(230,126,34,0.15);color:var(--amber)}
-.pill-danger{background:rgba(192,57,43,0.15);color:var(--red)}
+.pill-danger{background:rgba(192,57,43,0.15);color:#E74C3C}
+.pill-gray{background:rgba(107,114,128,0.15);color:var(--steel)}
+.pct-bar-bg{height:5px;background:var(--border);border-radius:3px;margin-top:4px}
+.pct-bar-fill{height:5px;border-radius:3px;background:var(--gold)}
+.log-row{padding:10px 0;border-bottom:1px solid var(--border)}
+.log-row:last-child{border-bottom:none}
+.flag-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.flag-row:last-child{border-bottom:none}
+.flag-icon{width:28px;height:28px;border-radius:6px;background:rgba(192,57,43,0.15);color:#E74C3C;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.empty-state{text-align:center;padding:2rem;color:var(--steel);font-size:14px}
+.user-row{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--border)}
+.user-row:last-child{border-bottom:none}
+.user-info{flex:1;min-width:0}
+.user-name{font-size:14px;font-weight:500;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-email{font-size:12px;color:var(--steel)}
+.role-badge{font-size:11px;font-weight:600;padding:3px 8px;border-radius:6px;flex-shrink:0}
+.action-btn{font-size:12px;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--cream);cursor:pointer;font-family:inherit;flex-shrink:0}
+.action-btn:hover{border-color:var(--gold)}
+.action-btn.danger{color:#E74C3C;border-color:rgba(192,57,43,0.4)}
 
-.tab-scroll{display:flex;overflow-x:auto;gap:0.5rem;padding-bottom:0.5rem;margin-bottom:1rem;scrollbar-width:none}
-.tab-scroll::-webkit-scrollbar{display:none}
-.tab-btn{background:var(--surface);border:1px solid var(--border);color:var(--steel);padding:0.5rem 1rem;border-radius:20px;font-size:13px;white-space:nowrap;cursor:pointer}
-.tab-btn.active{background:rgba(201,168,76,0.1);color:var(--gold);border-color:var(--gold)}
-.tab-pane{display:none}
-.tab-pane.active{display:block}
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center;padding:1rem}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;width:100%;max-width:400px}
+.modal-title{font-size:16px;font-weight:600;margin-bottom:1rem;color:var(--cream)}
+.modal-actions{display:flex;gap:8px;margin-top:1rem}
+.modal-actions .btn{margin-top:0}
 
-.list-item{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:0.75rem;display:flex;align-items:center;justify-content:space-between;cursor:pointer}
-.log-row{background:var(--surface);border-left:4px solid var(--steel);padding:0.75rem;margin-bottom:0.5rem;border-radius:0 6px 6px 0}
-.check-actions{display:flex;gap:0.5rem}
-.action-btn{background:var(--surface2);border:1px solid var(--border);color:var(--cream);width:36px;height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer}
-.action-btn.active-ok{background:var(--green);color:white;border-color:var(--green)}
-.action-btn.active-flag{background:var(--red);color:white;border-color:var(--red)}
-.badge-tray{display:flex;flex-wrap:wrap;gap:0.25rem;margin-top:0.5rem}
-.empty-state{text-align:center;padding:2rem 1rem;color:var(--steel);font-size:14px;background:var(--surface2);border-radius:8px;border:1px dashed var(--border)}
+/* SUCCESS */
+.success-screen{text-align:center;padding:3rem 1rem}
+.success-icon{font-size:56px;color:var(--green);margin-bottom:1rem}
+
+/* LOGIN */
+.login-logo{text-align:center;padding:2.5rem 0 1.5rem}
+.login-logo img{height:120px;width:auto;margin-bottom:1rem}
+.login-title{font-size:22px;font-weight:700;color:var(--gold);letter-spacing:1px}
+.login-sub{font-size:13px;color:var(--steel);margin-top:6px}
+.greeting-row{display:flex;align-items:flex-start;justify-content:space-between;padding:0.5rem 0 0}
+.dash-title{font-size:20px;font-weight:600;color:var(--cream)}
+.required-star{color:var(--red);margin-left:2px}
+.hours-required{border-color:var(--amber) !important}
+.vessel-card-trip{background:var(--surface);border-radius:12px;padding:1.25rem 1rem;cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s;margin-bottom:10px;border:1px solid var(--border)}
+.vessel-card-trip:hover{box-shadow:0 2px 12px rgba(201,168,76,0.15)}
+.trip-status-none{border-color:var(--border)}
+.trip-status-predeparture{border-color:var(--amber)}
+.trip-status-active{border-color:var(--green)}
+.trip-status-closed{border-color:var(--steel)}
+.engine-reading-grid{display:grid;gap:10px;margin-bottom:1rem}
+.engine-block{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px}
+.engine-block-title{font-size:12px;font-weight:600;color:var(--gold);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px}
+.engine-readings-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.notif-bell{position:relative;cursor:pointer;background:none;border:none;color:var(--steel);font-size:22px;padding:4px;display:flex;align-items:center}
+.notif-bell:hover{color:var(--gold)}
+.notif-badge{position:absolute;top:-2px;right:-2px;background:var(--red);color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.notif-panel{position:fixed;top:56px;right:0;width:340px;max-height:70vh;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-top:none;z-index:50;box-shadow:-4px 4px 20px rgba(0,0,0,0.4);display:none}
+.notif-panel.open{display:block}
+.notif-item{padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer}
+.notif-item:hover{background:var(--surface2)}
+.notif-item.unread{border-left:3px solid var(--gold)}
+.notif-item.read{border-left:3px solid transparent;opacity:0.7}
+.notif-title{font-size:13px;font-weight:600;color:var(--cream);margin-bottom:3px}
+.notif-msg{font-size:12px;color:var(--steel);line-height:1.4}
+.notif-time{font-size:11px;color:#555;margin-top:4px}
+.priority-high{color:var(--red)}
+.priority-medium{color:var(--amber)}
+.priority-low{color:var(--green)}
+.work-order-row{padding:12px 0;border-bottom:1px solid var(--border)}
+.work-order-row:last-child{border-bottom:none}
+.status-badge{font-size:11px;font-weight:600;padding:3px 8px;border-radius:6px}
+.status-open{background:rgba(192,57,43,0.15);color:#E74C3C}
+.status-in_progress{background:rgba(52,152,219,0.15);color:#3498DB}
+.status-awaiting_parts{background:rgba(230,126,34,0.15);color:var(--amber)}
+.status-complete{background:rgba(39,174,96,0.15);color:#27AE60}
+.status-pending_review{background:rgba(201,168,76,0.15);color:var(--gold)}
+.status-dismissed{background:rgba(107,114,128,0.15);color:var(--steel)}
 </style>
 </head>
 <body>
 
-<div class="topbar-main" id="topbar">
-  <div class="brand"><i class="ti ti-anchor"></i> Vantage Point Tracking</div>
-  <div id="user-chip" style="font-size:12px;color:var(--steel);background:var(--surface2);padding:4px 8px;border-radius:4px;border:1px solid var(--border)"></div>
+<div class="topbar-main" id="main-topbar">
+  <div class="topbar-logo">
+    <div class="topbar-logo-text">VANTAGE POINT<br><span class="topbar-logo-sub">TRACKING</span></div>
+  </div>
+  <div class="topbar-right">
+    <button class="notif-bell" onclick="toggleNotifPanel()">
+      <i class="ti ti-bell"></i>
+      <div id="notif-count-badge" class="notif-badge" style="display:none">0</div>
+    </button>
+    <div class="topbar-user" id="topbar-username">User</div>
+    <div id="topbar-role">Role</div>
+    <button class="signout-btn" onclick="doLogout()">
+      <i class="ti ti-logout"></i> Sign out
+    </button>
+  </div>
 </div>
 
-<div class="screen active" id="s-login">
-  <div style="text-align:center;margin:4rem 0 2rem 0">
-    <i class="ti ti-anchor" style="font-size:48px;color:var(--gold)"></i>
-    <h2 style="margin-top:0.5rem">Vantage Point Tracking</h2>
-    <p style="color:var(--steel);font-size:14px">Marine Fleet Intelligence Infrastructure</p>
+<div class="notif-panel" id="notif-panel">
+  <div id="notif-list-container">
+    <div class="empty-state">No notifications</div>
   </div>
+</div>
+
+<div class="screen active" id="screen-login">
+  <div class="login-logo">
+    <div class="login-title">VANTAGE POINT</div>
+    <div class="login-sub">FLEET INTELLIGENCE SYSTEMS</div>
+  </div>
+  <div class="card" style="max-width:360px;margin:0 auto">
+    <div class="form-group">
+      <label>Email address</label>
+      <input type="email" id="login-email" placeholder="name@company.com" value="test_crew@vantagepoint.com">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="login-pass" value="password123">
+    </div>
+    <div id="login-error" class="error-msg"></div>
+    <button class="btn btn-primary" id="login-btn" onclick="doLogin()">Sign in</button>
+  </div>
+</div>
+
+<div class="screen" id="screen-vessels">
+  <div class="greeting-row">
+    <div>
+      <div class="dash-title" id="crew-vessels-title">Assigned Hull Registry</div>
+      <p style="font-size:13px;color:var(--steel);margin-top:2px">Select an asset below to launch machinery tracking logs</p>
+    </div>
+  </div>
+  <div class="vessel-grid" id="crew-vessel-list"></div>
+</div>
+
+<div class="screen" id="screen-vessel-hub">
+  <div class="topbar">
+    <button class="back-btn" id="vessel-hub-back-btn" onclick="handleVesselHubBack()"><i class="ti ti-arrow-left"></i></button>
+    <div class="topbar-title" id="vh-vessel-name">Vessel name</div>
+  </div>
+  
+  <div id="trip-card-container"></div>
+  
+  <div class="card" style="padding:1.25rem 1rem">
+    <div style="font-size:14px;font-weight:600;color:var(--cream);margin-bottom:12px">Log history ledger</div>
+    <div id="vh-log-history"></div>
+  </div>
+</div>
+
+<div class="screen" id="screen-log-form">
+  <div class="topbar">
+    <button class="back-btn" onclick="show('screen-vessel-hub')"><i class="ti ti-x"></i></button>
+    <div class="topbar-title" id="lf-title">Daily entry record</div>
+  </div>
+  
   <div class="card">
+    <div class="reading-row">
+      <div>
+        <label>Log entry date</label>
+        <input type="date" id="lf-date">
+      </div>
+      <div>
+        <label>Watch Engineer</label>
+        <input type="text" id="lf-engineer">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <label style="color:var(--gold); font-weight: 600;">Shift & Watch Rotations</label>
+    <div id="watches-badge-tray" class="badge-tray" style="margin-bottom:10px;"></div>
+    <div class="reading-row three" style="margin-bottom:8px;">
+      <div>
+        <label class="reading-label">Watch Period</label>
+        <input type="text" id="watch-period-input" class="form-control reading-input" placeholder="e.g., 0600-1200">
+      </div>
+      <div>
+        <label class="reading-label">Start Hours</label>
+        <input type="number" step="0.1" id="watch-start-hours" class="form-control reading-input">
+      </div>
+      <div>
+        <label class="reading-label">End Hours</label>
+        <input type="number" step="0.1" id="watch-end-hours" class="form-control reading-input">
+      </div>
+    </div>
+    <button type="button" class="btn btn-sm" style="background:var(--surface); border:1px solid var(--border);" onclick="addNewWatchToArray()">
+      <i class="ti ti-plus"></i> Append Shift Log
+    </button>
+  </div>
+  
+  <div class="card">
+    <div class="section-header" style="margin-top:0"><i class="ti ti-engine"></i>Engine room telemetry</div>
+    <div id="lf-engines-container"></div>
+    
+    <div class="section-header"><i class="ti ti-gauge"></i>Fluid & Hull levels</div>
+    <div class="reading-row">
+      <div>
+        <div class="reading-label">Main fuel level</div>
+        <input type="text" id="r-fuel" class="form-control reading-input" placeholder="Gallons / %">
+      </div>
+      <div>
+        <div class="reading-label">Master hour meter</div>
+        <input type="number" id="r-hours" class="form-control reading-input" step="0.1">
+      </div>
+    </div>
+  </div>
+  
+  <div class="card">
+    <div class="section-header" style="margin-top:0"><i class="ti ti-list-check"></i>Predeparture validation matrix</div>
+    <div id="lf-checklist-container"></div>
+  </div>
+  
+  <div class="card">
+    <div class="form-group">
+      <label>Crew manifest additions</label>
+      <input type="text" id="lf-crew" placeholder="Names comma separated">
+    </div>
+    <div class="form-group">
+      <label>Operational logs / Remarks / Deficiencies</label>
+      <textarea id="lf-notes" rows="3" placeholder="Log notes..."></textarea>
+    </div>
+  </div>
+  
+  <div id="form-error" class="error-msg" style="margin-bottom:1rem"></div>
+  <button class="btn btn-primary" id="form-submit-btn" onclick="submitLogForm()">Transmit telemetry sheet to office</button>
+  <div style="height:2rem"></div>
+</div>
+
+<div class="screen" id="screen-dashboard">
+  <div class="greeting-row">
+    <div>
+      <div class="dash-title" id="dash-welcome">Fleet Matrix Console</div>
+      <p style="font-size:13px;color:var(--steel);margin-top:2px">Real-time status board and operations metrics</p>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button id="admin-nav-btn" onclick="loadUsers();show('screen-admin')" class="btn btn-sm" style="display:none"><i class="ti ti-settings"></i> Setup</button>
+      <button id="maint-nav-btn" onclick="loadMaintenanceLog();show('screen-maintenance')" class="btn btn-sm" style="display:none"><i class="ti ti-wrench"></i> Maintenance</button>
+      <button id="fleet-nav-btn" onclick="loadFleetStatus();show('screen-fleet-status')" class="btn btn-sm" style="display:none"><i class="ti ti-ship"></i> Fleet</button>
+      <button onclick="loadDashboard()" class="btn btn-sm"><i class="ti ti-refresh"></i></button>
+    </div>
+  </div>
+  
+  <div class="metrics-grid">
+    <div class="metric-card" style="cursor:pointer" onclick="switchDashTab('vessels',document.querySelector('.nav-tab'))">
+      <div class="metric-label">Logs today</div>
+      <div class="metric-value" id="m-today">-</div>
+      <div class="metric-sub" id="m-today-sub">of 7 vessels</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">This week</div>
+      <div class="metric-value" id="m-week">-</div>
+      <div class="metric-sub">accumulated sheets</div>
+    </div>
+    <div class="metric-card metric-alert" style="cursor:pointer" onclick="switchDashTab('flags',document.querySelectorAll('.nav-tab')[1])">
+      <div class="metric-label">System flags</div>
+      <div class="metric-value" id="m-flags">-</div>
+      <div class="metric-sub">require verification</div>
+    </div>
+    <div class="metric-card metric-ok">
+      <div class="metric-label">Active trips</div>
+      <div class="metric-value" id="m-trips">-</div>
+      <div class="metric-sub">currently logging</div>
+    </div>
+  </div>
+  
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="switchDashTab('vessels',this)">Vessel Assets Matrix</button>
+    <button class="nav-tab" onclick="switchDashTab('flags',this)">Flagged Alerts</button>
+  </div>
+  
+  <div id="dash-tab-vessels" class="dash-tab-content">
+    <div id="dash-vessel-list"></div>
+  </div>
+  <div id="dash-tab-flags" class="dash-tab-content" style="display:none">
+    <div id="dash-flagged-list"></div>
+  </div>
+</div>
+
+<div class="screen" id="screen-admin">
+  <div class="topbar">
+    <button class="back-btn" onclick="show('screen-dashboard')"><i class="ti ti-arrow-left"></i></button>
+    <div class="topbar-title">Company Configuration Center</div>
+    <button class="btn btn-primary btn-sm" onclick="openCreateUserModal()"><i class="ti ti-user-plus"></i> Add profile</button>
+  </div>
+  <div class="card" style="padding:1.25rem 1rem">
+    <div style="font-size:14px;font-weight:600;color:var(--cream);margin-bottom:12px">Active crew & office roles</div>
+    <div id="admin-user-list"></div>
+  </div>
+</div>
+
+<div class="screen" id="screen-maintenance">
+  <div class="topbar">
+    <button class="back-btn" onclick="show('screen-dashboard')"><i class="ti ti-arrow-left"></i></button>
+    <div class="topbar-title">Maintenance Work Orders Control</div>
+  </div>
+  <div class="card" style="padding:1.25rem 1rem">
+    <div id="maint-list"></div>
+  </div>
+</div>
+
+<div class="screen" id="screen-fleet-status">
+  <div class="topbar">
+    <button class="back-btn" onclick="show('screen-dashboard')"><i class="ti ti-arrow-left"></i></button>
+    <div class="topbar-title">Active Fleet Telemetry Tracker</div>
+  </div>
+  <div id="fleet-status-vessel-list"></div>
+</div>
+
+<div class="screen" id="screen-work-order-detail">
+  <div class="topbar">
+    <button class="back-btn" onclick="loadMaintenanceLog();show('screen-maintenance')"><i class="ti ti-arrow-left"></i></button>
+    <div class="topbar-title" id="wod-vessel-name">Work order records</div>
+  </div>
+  <div id="wod-detail"></div>
+  <h4 style="margin:1.5rem 0 0.5rem 0;font-size:14px;color:var(--gold)">Audit logging sequence history</h4>
+  <div id="wod-timeline"></div>
+</div>
+
+<div class="screen" id="screen-success">
+  <div class="card success-screen">
+    <div class="success-icon"><i class="ti ti-circle-check"></i></div>
+    <h3 style="margin-bottom:0.5rem">Data Packet Dispatched</h3>
+    <p style="color:var(--steel);font-size:14px;margin-bottom:1.5rem" id="success-msg">The engine log sheet parameters have been successfully written to the database registry.</p>
+    <button class="btn btn-primary" onclick="handleSuccessBack()">Return to platform hub</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-user">
+  <div class="modal">
+    <div class="modal-title" id="user-modal-title">Create Account Profile</div>
+    <div class="form-group">
+      <label>Full Name</label>
+      <input type="text" id="mu-name" placeholder="John Doe">
+    </div>
     <div class="form-group">
       <label>Email Address</label>
-      <input type="email" id="login-email" class="form-control" value="test_crew@vantagepoint.com">
+      <input type="email" id="mu-email" placeholder="john@company.com">
+    </div>
+    <div class="form-group" id="mu-pass-group">
+      <label>Password String</label>
+      <input type="password" id="mu-pass">
     </div>
     <div class="form-group">
-      <label>Password Secret</label>
-      <input type="password" id="login-pass" class="form-control" value="password123">
+      <label>System Authorization Tier Role</label>
+      <select id="mu-role">
+        <option value="crew">Crew Boat Operator</option>
+        <option value="office">Office Dispatch Personnel</option>
+        <option value="vessel_ops_manager">Vessel Ops Manager</option>
+        <option value="port_engineer">Port Engineer</option>
+        <option value="company_admin">Company Administrator</option>
+      </select>
     </div>
-    <button class="btn btn-gold" id="btn-login" onclick="login()">Authenticate Session</button>
+    <div id="mu-error" class="error-msg"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeUserModal()">Cancel</button>
+      <button class="btn btn-primary" id="mu-submit-btn" onclick="submitUserModal()">Save parameters</button>
+    </div>
   </div>
 </div>
 
-<div class="screen" id="s-dash">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
-    <h3 id="dash-greeting">Fleet Dashboard</h3>
-  </div>
-
-  <div class="tab-scroll" id="dash-tabs">
-    <button class="tab-btn active" onclick="switchDashTab('overview')">Status Board</button>
-    <button class="tab-btn mgr-only" onclick="switchDashTab('maintenance')">Maintenance</button>
-    <button class="tab-btn mgr-only" onclick="switchDashTab('safety')">Compliance & Safety</button>
-  </div>
-
-  <div class="tab-pane active" id="tab-overview">
-    <div class="dash-grid mgr-only">
-      <div class="metric-card"><div class="metric-val" id="met-vessels">-</div><div class="metric-label">Assigned Hull</div></div>
-      <div class="metric-card"><div class="metric-val" id="met-logs" style="color:var(--gold)">-</div><div class="metric-label">Active Trips</div></div>
-      <div class="metric-card"><div class="metric-val" id="met-flags" style="color:var(--amber)">-</div><div class="metric-label">System Flags</div></div>
-      <div class="metric-card"><div class="metric-val" id="met-wo" style="color:var(--red)">-</div><div class="metric-label">Pending WO</div></div>
+<div class="modal-overlay" id="modal-update-order">
+  <div class="modal">
+    <div class="modal-title">Update maintenance parameter status</div>
+    <div class="form-group">
+      <label>Status Tier</label>
+      <select id="update-status-select">
+        <option value="open">Open / Unresolved Defect</option>
+        <option value="in_progress">Active Maintenance In Progress</option>
+        <option value="awaiting_parts">Awaiting Parts / Supply Chain Hold</option>
+        <option value="complete">Resolved / Complete Sign-Off</option>
+        <option value="pending_review">Pending Technical Office Review</option>
+      </select>
     </div>
-    <h4 style="margin-bottom:0.75rem">Operational Fleet Manifest</h4>
-    <div id="fleet-list" class="vessel-grid"></div>
-  </div>
-
-  <div class="tab-pane" id="tab-maintenance">
-    <div style="display:flex;justify-content:space-between;margin-bottom:1rem">
-      <h4>Open Urgent Work Orders</h4>
+    <div class="form-group">
+      <label>Maintenance Action Log Notes</label>
+      <textarea id="update-work-performed" rows="3" placeholder="Describe the resolution steps, parts used, or testing performed..."></textarea>
     </div>
-    <div id="wo-list"><div class="empty-state">No open maintenance parameters.</div></div>
-  </div>
-
-  <div class="tab-pane" id="tab-safety">
-    <h4>Regulatory Certificate Framework</h4>
-    <div id="cert-list" class="empty-state" style="margin-top:1rem">No active expirations flagged.</div>
-  </div>
-</div>
-
-<div class="screen" id="s-vessel">
-  <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem">
-    <button class="btn" style="width:40px;height:40px;padding:0" onclick="showPage('dash')"><i class="ti ti-arrow-left"></i></button>
-    <h3 id="vd-name">Hull Detail</h3>
-  </div>
-
-  <div class="dash-grid" style="grid-template-columns:repeat(3,1fr)">
-    <button class="btn btn-gold" style="flex-direction:column;gap:0.25rem;padding:1rem 0" onclick="openLogForm()">
-      <i class="ti ti-clipboard-text" style="font-size:24px"></i>
-      <span style="font-size:11px">Daily Log</span>
-    </button>
-    <button class="btn" style="flex-direction:column;gap:0.25rem;padding:1rem 0" onclick="alert('Engine telemetry streams active.')">
-      <i class="ti ti-engine" style="font-size:24px"></i>
-      <span style="font-size:11px">Telemetry</span>
-    </button>
-    <button class="btn" style="flex-direction:column;gap:0.25rem;padding:1rem 0" onclick="alert('Trip itinerary ledger locked.')">
-      <i class="ti ti-route" style="font-size:24px"></i>
-      <span style="font-size:11px">Voyages</span>
-    </button>
-  </div>
-
-  <h4 style="margin-bottom:0.75rem">Recent Historical Logs</h4>
-  <div id="vd-logs"></div>
-</div>
-
-<div class="screen" id="s-logform">
-  <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem">
-    <button class="btn" style="width:40px;height:40px;padding:0" onclick="showPage('vessel')"><i class="ti ti-x"></i></button>
-    <h3>New Machinery Log Sheet</h3>
-  </div>
-
-  <div class="card">
-    <div class="row g-2">
-      <div class="col-md-6"><div class="form-group"><label>Log Identifier Record</label><input type="text" id="log-number" class="form-control" readonly></div></div>
-      <div class="col-md-6"><div class="form-group"><label>Calendar Log Date</label><input type="date" id="log-date" class="form-control"></div></div>
-      <div class="col-md-6"><div class="form-group"><label>Chief Engineer Signature</label><input type="text" id="log-engineer" class="form-control"></div></div>
+    <div id="update-error" class="error-msg"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeUpdateModal()">Cancel</button>
+      <button class="btn btn-primary" id="update-confirm-btn" onclick="confirmUpdateWorkOrder()">Confirm update parameters</button>
     </div>
   </div>
-
-  <div class="card">
-    <h4 style="margin-bottom:0.75rem;color:var(--gold)"><i class="ti ti-clock"></i> Voyage Watch & Shift Rotation Logs</h4>
-    <div id="watches-badge-tray" class="badge-tray" style="margin-bottom: 10px;"></div>
-    
-    <div class="row g-2 mb-2">
-      <div class="col-6"><input type="text" id="watch-period-input" class="form-control" placeholder="Period (e.g. 0600-1200)"></div>
-      <div class="col-6"><input type="text" id="watch-eng-input" class="form-control" placeholder="On-Duty Engineer"></div>
-      <div class="col-6"><input type="number" step="0.1" id="watch-start-hours" class="form-control" placeholder="Start Hours"></div>
-      <div class="col-6"><input type="number" step="0.1" id="watch-end-hours" class="form-control" placeholder="End Hours"></div>
-    </div>
-    <button type="button" class="btn" style="background:var(--surface2);color:var(--cream);border:1px solid var(--border);" onclick="addNewWatchToArray()">
-      <i class="ti ti-plus"></i> Append Watch Shift Entry
-    </button>
-  </div>
-
-  <h4 style="margin-bottom:0.75rem">Predeparture Machinery Checklists</h4>
-  <div id="checklist-container" style="margin-bottom:1rem"></div>
-
-  <div class="card">
-    <div class="row g-2">
-      <div class="col-md-6"><div class="form-group"><label>Total Engine Hours Tracker</label><input type="number" id="log-hours" class="form-control" step="0.1"></div></div>
-      <div class="col-md-6"><div class="form-group"><label>Fuel Tank Quantities</label><input type="text" id="log-fuel" class="form-control"></div></div>
-      <div class="col-12"><div class="form-group"><label>Complement Crew Manifest</label><input type="text" id="log-crew" class="form-control"></div></div>
-      <div class="col-12"><div class="form-group"><label>Operational Remarks & Log Notes</label><textarea id="log-notes" class="form-control" rows="3"></textarea></div></div>
-    </div>
-  </div>
-
-  <button class="btn btn-gold" id="btn-submit-log" onclick="submitLog()"><i class="ti ti-cloud-upload"></i> Dispatch Log Sheet to Fleet Office</button>
-</div>
-
-<div class="screen" id="s-settings">
-  <h3>Operator Profile Parameters</h3>
-  <div class="card" style="margin-top:1rem">
-    <p style="color:var(--steel);margin-bottom:1rem">Profile Verified Identity: <strong id="set-name" style="color:var(--cream)">-</strong></p>
-    <button class="btn" onclick="logout()"><i class="ti ti-logout"></i> Sever Session Connection</button>
-  </div>
-</div>
-
-<div class="nav-grid" id="navbar">
-  <a class="nav-item active" id="nav-dash" onclick="showPage('dash')"><i class="ti ti-layout-dashboard"></i>Dash</a>
-  <a class="nav-item" id="nav-fleet" onclick="showPage('dash'); switchDashTab('overview')"><i class="ti ti-ship"></i>Fleet</a>
-  <a class="nav-item mgr-only" id="nav-maint" onclick="showPage('dash'); switchDashTab('maintenance')"><i class="ti ti-wrench"></i>Maint</a>
-  <a class="nav-item mgr-only" id="nav-safety" onclick="showPage('dash'); switchDashTab('safety')"><i class="ti ti-shield-check"></i>Safety</a>
-  <a class="nav-item" id="nav-settings" onclick="showPage('settings')"><i class="ti ti-settings"></i>Profile</a>
 </div>
 
 <script>
-// Fixed network location targeting matching your true codebase configuration structure
-const API_URL = window.location.origin;
-let TOKEN = localStorage.getItem('vpt_token') || '';
-let USER = null;
-
-let FLEET = [];
-let RECENT_LOGS = [];
+const API = window.location.origin;
+let token = localStorage.getItem('vpt_token') || '';
+let currentUser = null;
+let allVessels = [];
 let currentVessel = null;
-let currentChecklist = [];
-let accumulatedWatchesPayload = [];
+let currentTrip = null;
+let maintLog = [];
 
-const DEFAULT_CHECKS = [
-  { key: 'checks-gen_1', label: 'Engine Fluids & Oil Levels Check' },
-  { key: 'checks-gen_2', label: 'Sea Chest Strainers Condition' },
-  { key: 'checks-gen_3', label: 'Bilge Levels Dry & Pumps Automatic' },
-  { key: 'checks-gen_4', label: 'Steering Gear Systems Pressure' },
-  { key: 'checks-gen_5', label: 'Battery Banks Voltages & Alternators' }
+let accumulatedWatchesPayload = [];
+let checkedMatrixState = [];
+
+const CHECKLIST_ITEMS = [
+  { key: 'machinery_1', label: 'Main engine fluids & oil level validation parameters' },
+  { key: 'machinery_2', label: 'Cooling sea chest strainers clear inspection' },
+  { key: 'safety_1', label: 'Bilge levels evaluation & automatic pump verification' },
+  { key: 'machinery_3', label: 'Steering gear fluid pressures & hydraulic loop checks' },
+  { key: 'electrical_1', label: 'DC battery bank charge balances & alternator outputs check' }
 ];
 
-async function api(path, method='GET', body=null) {
+async function rq(path, method = 'GET', body = null) {
   const headers = { 'Content-Type': 'application/json' };
-  if(TOKEN) headers['Authorization'] = `Bearer ${TOKEN}`;
-  
-  const options = { method, headers };
-  if(body) options.body = JSON.stringify(body);
-  
-  const res = await fetch(`${API_URL}/api${path}`, options);
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  const opt = { method, headers };
+  if (body) opt.body = JSON.stringify(body);
+  const res = await fetch(API + path, opt);
   const data = await res.json();
-  if(!res.ok) throw new Error(data.error || 'API Connection Error');
+  if (!res.ok) throw new Error(data.error || 'Server error context');
   return data;
 }
 
-function showPage(id) {
+function show(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById(`s-${id}`).classList.add('active');
-  
-  if(id === 'login') {
-    document.getElementById('topbar').style.display = 'none';
-    document.getElementById('navbar').style.display = 'none';
-  } else {
-    document.getElementById('topbar').style.display = 'flex';
-    document.getElementById('navbar').style.display = 'grid';
-  }
-  
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const activeNav = document.getElementById(`nav-${id}`);
-  if(activeNav) activeNav.classList.add('active');
+  const el = document.getElementById(id) || document.getElementById('screen-' + id);
+  if (el) el.classList.add('active');
+  window.scrollTo(0,0);
 }
 
-function switchDashTab(tabId) {
-  document.querySelectorAll('#dash-tabs .tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('#s-dash .tab-pane').forEach(p => p.classList.remove('active'));
-  if (event && event.target) event.target.classList.add('active');
-  document.getElementById(`tab-${tabId}`).classList.add('active');
+function handleSuccessBack() {
+  const role = currentUser ? currentUser.role : 'crew';
+  if (role === 'crew') { show('screen-vessels'); }
+  else { loadDashboard(); show('screen-dashboard'); }
 }
 
-async function login() {
-  const email = document.getElementById('login-email').value;
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
   const pass = document.getElementById('login-pass').value;
-  const btn = document.getElementById('btn-login');
+  const btn = document.getElementById('login-btn');
+  const err = document.getElementById('login-error');
+  err.style.display = 'none';
+  if (!email || !pass) { err.textContent = 'Credentials signatures are incomplete.'; err.style.display = 'block'; return; }
   try {
-    btn.disabled = true; btn.innerText = 'Verifying security signature...';
-    const data = await api('/auth/login', 'POST', { email, password: pass });
-    TOKEN = data.token; USER = data.user;
-    localStorage.setItem('vpt_token', TOKEN);
-    initApp();
-  } catch(e) { alert(e.message); }
-  finally { btn.disabled = false; btn.innerText = 'Authenticate Session'; }
+    btn.disabled = true; btn.textContent = 'Authenticating signature...';
+    const data = await rq('/api/auth/login', 'POST', { email, password: pass });
+    token = data.token; currentUser = data.user;
+    localStorage.setItem('vpt_token', token);
+    await bootstrapSession();
+  } catch(e) { err.textContent = e.message; err.style.display = 'block'; }
+  finally { btn.disabled = false; btn.textContent = 'Sign in'; }
 }
 
-function logout() {
-  TOKEN = ''; USER = null;
+function doLogout() {
+  token = ''; currentUser = null;
   localStorage.removeItem('vpt_token');
-  showPage('login');
+  document.getElementById('main-topbar').classList.remove('visible');
+  show('screen-login');
 }
 
-async function initApp() {
-  if(!TOKEN) return showPage('login');
-  try {
-    if(!USER) {
-      const data = await api('/auth/me');
-      USER = data.user;
-    }
-    
-    document.getElementById('user-chip').innerText = `${USER.full_name} (${USER.role})`;
-    document.getElementById('set-name').innerText = USER.full_name;
-    
-    // Multi-role custom access layout management filtering parameters
-    const isManager = ['admin','company_admin','port_engineer','vessel_ops_manager','overlordadmin'].includes(USER.role);
-    document.querySelectorAll('.mgr-only').forEach(el => {
-      el.style.display = isManager ? (el.tagName === 'A' ? 'flex' : 'block') : 'none';
-    });
-
-    document.getElementById('dash-greeting').innerText = `Vessel Tracker: ${USER.full_name.split(' ')[0]}`;
-    
-    loadDashboardData();
-    showPage('dash');
-  } catch(e) { logout(); }
+function switchDashTab(tab, tabBtn) {
+  document.querySelectorAll('.dash-tab-content').forEach(c => s=c.style.display='none');
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('dash-tab-' + tab).style.display = 'block';
+  if (tabBtn) tabBtn.classList.add('active');
 }
 
-async function loadDashboardData() {
+async function bootstrapSession() {
+  if (!token) { show('screen-login'); return; }
   try {
-    const data = await api('/vessels');
-    FLEET = data.vessels || data;
-    
-    const fList = document.getElementById('fleet-list');
-    if(!FLEET.length) {
-      fList.innerHTML = '<div class="empty-state">No assigned hull systems tracked.</div>';
-      return;
-    }
+    const me = await rq('/api/auth/me');
+    currentUser = me.user;
+    document.getElementById('topbar-username').textContent = currentUser.full_name;
+    const tc = document.getElementById('topbar-role');
+    tc.textContent = currentUser.role.replace('_',' ');
+    tc.className = 'role-chip chip-' + currentUser.role;
+    document.getElementById('main-topbar').classList.add('visible');
 
-    // MAPS THE CARD GRID PATTERNS VISUALLY TO MATCH YOUR ATTACHED DASHBOARD IMAGE EXPLICITLY
-    fList.innerHTML = FLEET.map(v => `
-      <div class="vessel-card-trip" onclick="openVessel('${v.id}')">
-        <div class="vessel-icon"><i class="ti ti-ship"></i></div>
+    const privileged = ['admin','company_admin','port_engineer','vessel_ops_manager','overlordadmin','superadmin'];
+    if (privileged.includes(currentUser.role)) {
+      if (['admin','company_admin','overlordadmin','superadmin'].includes(currentUser.role)) {
+        document.getElementById('admin-nav-btn').style.display = 'inline-block';
+      }
+      document.getElementById('maint-nav-btn').style.display = 'inline-block';
+      document.getElementById('fleet-nav-btn').style.display = 'inline-block';
+      await loadDashboard();
+      show('screen-dashboard');
+    } else {
+      await loadCrewVessels();
+      show('screen-vessels');
+    }
+  } catch(e) { doLogout(); }
+}
+
+async function loadCrewVessels() {
+  const el = document.getElementById('crew-vessel-list');
+  el.innerHTML = '<div class="empty-state"><span class="spinner spinner-dark"></span>Binding records...</div>';
+  try {
+    const data = await rq('/api/vessels');
+    allVessels = data.vessels || data;
+    if (!allVessels.length) { el.innerHTML = '<div class="empty-state">No vessel parameters assigned.</div>'; return; }
+    el.innerHTML = allVessels.map(v => `
+      <div class="vessel-card" onclick="openVesselHub('${v.id}')">
+        <i class="ti ti-ship"></i>
         <div class="vname">${v.name}</div>
-        <div style="font-size:11px;color:var(--steel);text-transform:uppercase">${v.vessel_type || 'Crewboat'}</div>
-        <div class="pct-bar-bg"><div class="pct-bar-fill"></div></div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:11px">
-          <span class="stat-pill pill-ok">Operational</span>
-          <span style="color:var(--steel)"><i class="ti ti-chevron-right"></i></span>
-        </div>
+        <div style="font-size:11px;color:var(--steel);margin-top:4px">${v.vessel_type || 'Crewboat'}</div>
       </div>
     `).join('');
-
-    const isManager = ['admin','company_admin','port_engineer','vessel_ops_manager','overlordadmin'].includes(USER.role);
-    if(isManager) {
-      document.getElementById('met-vessels').innerText = FLEET.length;
-      const logs = await api('/logs');
-      RECENT_LOGS = logs.logs || [];
-      document.getElementById('met-logs').innerText = RECENT_LOGS.length;
-      
-      const totalFlags = RECENT_LOGS.reduce((sum, l) => sum + (l.flag_count||0), 0);
-      document.getElementById('met-flags').innerText = totalFlags;
-      document.getElementById('met-wo').innerText = "0";
-    }
-  } catch(e) { console.error('Dashboard load loop fail:', e); }
+  } catch(e) { el.innerHTML = '<div class="empty-state text-danger">Failed matching assets structure.</div>'; }
 }
 
-async function openVessel(id) {
-  currentVessel = FLEET.find(v => v.id === id);
-  if(!currentVessel) return;
-  
-  document.getElementById('vd-name').innerText = currentVessel.name;
-  showPage('vessel');
-  
-  const vLogs = document.getElementById('vd-logs');
-  vLogs.innerHTML = '<div style="color:var(--steel)">Syncing log records...</div>';
-  
+async function openVesselHub(vId) {
+  currentVessel = allVessels.find(v => v.id === vId);
+  if (!currentVessel) return;
+  document.getElementById('vh-vessel-name').textContent = currentVessel.name;
+  show('screen-vessel-hub');
+  await refreshVesselHubDetails();
+}
+
+function handleVesselHubBack() {
+  const privileged = ['admin','company_admin','port_engineer','vessel_ops_manager','overlordadmin','superadmin'];
+  if (privileged.includes(currentUser.role)) { show('screen-dashboard'); }
+  else { show('screen-vessels'); }
+}
+
+async function refreshVesselHubDetails() {
+  const cardZone = document.getElementById('trip-card-container');
+  const histZone = document.getElementById('vh-log-history');
+  cardZone.innerHTML = '';
+  histZone.innerHTML = '<div class="empty-state"><span class="spinner spinner-dark"></span>Ledger syncing...</div>';
   try {
-    const data = await api(`/logs?vessel_id=${id}`);
-    const logs = data.logs || [];
-    if(!logs.length) vLogs.innerHTML = '<div class="empty-state">No recorded daily machine sheets found.</div>';
-    else {
-      vLogs.innerHTML = logs.map(l => `
-        <div class="log-row" style="border-left-color:var(--green)">
-          <div style="display:flex;justify-content:space-between">
-            <strong>Log Sheet #${l.log_number}</strong>
-            <span class="stat-pill pill-ok">${l.completion_pct}% Checked</span>
+    const [tData, lData] = await Promise.all([
+      rq('/api/trips/active?vessel_id=' + currentVessel.id),
+      rq('/api/logs?vessel_id=' + currentVessel.id)
+    ]);
+    currentTrip = tData.trip || null;
+    const logs = lData.logs || [];
+
+    if (!currentTrip) {
+      cardZone.innerHTML = `
+        <div class="vessel-card-trip trip-status-none">
+          <div style="font-size:15px;font-weight:700;color:var(--gold)">No Open Voyage Tracked</div>
+          <p style="font-size:12px;color:var(--steel);margin-top:4px">No active trip session running for this hull registry.</p>
+          <button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="startTripSession()"><i class="ti ti-player-play"></i> Initiate Asset Pre-Departure Sequence</button>
+        </div>`;
+    } else if (currentTrip.status === 'predeparture') {
+      cardZone.innerHTML = `
+        <div class="vessel-card-trip trip-status-predeparture">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:14px;font-weight:700;color:var(--amber)">Pre-Departure Assessment State</span>
+            <span class="stat-pill pill-warn">Staged</span>
           </div>
-          <div style="font-size:11px;color:var(--steel);margin-top:4px">
-            ${new Date(l.log_date).toLocaleDateString()} | ${l.engineer_name} | Flags Reported: ${l.flag_count}
+          <p style="font-size:12px;color:var(--steel);margin-top:6px">Voyage started on ${new Date(currentTrip.start_time).toLocaleDateString()}</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+            <button class="btn btn-primary btn-sm" onclick="openLogForm()"><i class="ti ti-clipboard-text"></i> Complete Checklist Form</button>
+            <button class="btn btn-sm" style="color:var(--red);border-color:rgba(192,57,43,0.3)" onclick="endTripSession()"><i class="ti ti-player-stop"></i> Dismiss Assessment</button>
           </div>
-        </div>
-      `).join('');
+        </div>`;
+    } else if (currentTrip.status === 'active') {
+      cardZone.innerHTML = `
+        <div class="vessel-card-trip trip-status-active">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:14px;font-weight:700;color:var(--green)">Voyage Active Tier Running</span>
+            <span class="stat-pill pill-ok">Underway</span>
+          </div>
+          <p style="font-size:12px;color:var(--steel);margin-top:6px">Underway sequence recording operations logs.</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+            <button class="btn btn-primary btn-sm" onclick="openLogForm()"><i class="ti ti-file-plus"></i> Append Machinery Record</button>
+            <button class="btn btn-sm" style="color:var(--red);border-color:rgba(192,57,43,0.3)" onclick="endTripSession()"><i class="ti ti-anchor"></i> Close Active Voyage</button>
+          </div>
+        </div>`;
     }
-  } catch(e) { vLogs.innerHTML = `<div class="empty-state text-danger">${e.message}</div>`; }
+
+    if (!logs.length) { histZone.innerHTML = '<div class="empty-state">No log history rows verified.</div>'; }
+    else {
+      histZone.innerHTML = logs.map(l => `
+        <div class="log-row">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <strong>Sheet Sheet #${l.log_number}</strong>
+            <span class="stat-pill ${l.completion_pct === 100 ? 'pill-ok' : 'pill-warn'}">${l.completion_pct}% Metrics</span>
+          </div>
+          <div style="font-size:12px;color:var(--steel);margin-top:4px">
+            <span><i class="ti ti-calendar"></i> ${new Date(l.log_date).toLocaleDateString()}</span> | 
+            <span><i class="ti ti-user"></i> ${l.engineer_name || 'Crew'}</span>
+          </div>
+        </div>`).join('');
+    }
+  } catch(e) { histZone.innerHTML = `<div class="empty-state text-danger">${e.message}</div>`; }
+}
+
+async function startTripSession() {
+  try {
+    await rq('/api/trips/start', 'POST', { vessel_id: currentVessel.id });
+    await refreshVesselHubDetails();
+  } catch(e) { alert(e.message); }
+}
+
+async function endTripSession() {
+  if (!confirm('Are you certain you want to sign-off and finalize this trip itinerary tier window?')) return;
+  try {
+    await rq('/api/trips/end', 'POST', { vessel_id: currentVessel.id });
+    await refreshVesselHubDetails();
+  } catch(e) { alert(e.message); }
 }
 
 function openLogForm() {
   accumulatedWatchesPayload = [];
   document.getElementById('watches-badge-tray').innerHTML = '<span style="color:var(--steel);font-size:11px;">No watch shift segments logged yet.</span>';
-  
-  document.getElementById('log-number').value = `VPT-${Math.floor(100000+Math.random()*900000)}`;
+  document.getElementById('log-number').value = `VPT-${Math.floor(100000 + Math.random() * 900000)}`;
   document.getElementById('log-date').value = new Date().toISOString().split('T')[0];
-  document.getElementById('log-engineer').value = USER.full_name;
+  document.getElementById('lf-engineer').value = currentUser.full_name;
   
   document.getElementById('watch-period-input').value = '';
-  document.getElementById('watch-eng-input').value = '';
   document.getElementById('watch-start-hours').value = '';
   document.getElementById('watch-end-hours').value = '';
-  
-  document.getElementById('log-hours').value = '';
-  document.getElementById('log-fuel').value = '';
-  document.getElementById('log-crew').value = '';
-  document.getElementById('log-notes').value = '';
-  
-  currentChecklist = DEFAULT_CHECKS.map(c => ({ ...c, checked: true, flag: 'ok' }));
-  renderChecklist();
-  
-  showPage('logform');
+  document.getElementById('r-hours').value = '';
+  document.getElementById('r-fuel').value = '';
+  document.getElementById('lf-crew').value = '';
+  document.getElementById('lf-notes').value = '';
+  document.getElementById('form-error').style.display = 'none';
+
+  const engBox = document.getElementById('lf-engines-container');
+  engBox.innerHTML = `
+    <div class="engine-block">
+      <div class="engine-block-title">Main Propulsor parameters</div>
+      <div class="engine-readings-row">
+        <div><div class="reading-label">RPM speed</div><input type="number" id="r-rpm" class="form-control reading-input" placeholder="RPM"></div>
+        <div><div class="reading-label">Oil (PSI)</div><input type="number" id="r-oil" class="form-control reading-input" placeholder="PSI"></div>
+        <div><div class="reading-label">Temp (°F)</div><input type="number" id="r-coolant" class="form-control reading-input" placeholder="°F"></div>
+      </div>
+    </div>`;
+
+  checkedMatrixState = CHECKLIST_ITEMS.map(i => ({ ...i, checked: true, flag: 'ok' }));
+  renderChecklistUI();
+  show('screen-log-form');
 }
 
-function renderChecklist() {
-  const container = document.getElementById('checklist-container');
-  container.innerHTML = currentChecklist.map((item, i) => `
-    <div class="card" style="padding:0.75rem;margin-bottom:0.5rem">
-      <div style="font-size:13px;font-weight:600;margin-bottom:0.5rem">${item.label}</div>
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <label style="display:flex;align-items:center;gap:0.5rem;font-size:12px;cursor:pointer">
-          <input type="checkbox" style="width:16px;height:16px" ${item.checked?'checked':''} 
-                 onchange="currentChecklist[${i}].checked = this.checked; document.getElementById('actions-${i}').style.display = this.checked ? 'flex' : 'none';">
-          Perform Inspection Pass
-        </label>
-        <div class="check-actions" id="actions-${i}" style="display:${item.checked?'flex':'none'}">
-          <button class="action-btn ${item.flag==='ok'?'active-ok':''}" onclick="setFlag(${i},'ok')"><i class="ti ti-check"></i></button>
-          <button class="action-btn ${item.flag==='flag'?'active-flag':''}" onclick="setFlag(${i},'flag')"><i class="ti ti-alert-triangle"></i></button>
-        </div>
+function renderChecklistUI() {
+  const container = document.getElementById('lf-checklist-container');
+  container.innerHTML = checkedMatrixState.map((item, index) => `
+    <div class="check-item">
+      <label style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" ${item.checked ? 'checked' : ''} onchange="checkedMatrixState[${index}].checked=this.checked;document.getElementById('actions-panel-${index}').style.display=this.checked?'flex':'none'">
+        <span>${item.label}</span>
+      </label>
+      <div class="check-actions" id="actions-panel-${index}" style="display:${item.checked ? 'flex' : 'none'}">
+        <button type="button" class="action-btn ${item.flag === 'ok' ? 'active-ok' : ''}" onclick="checkedMatrixState[${index}].flag='ok';renderChecklistUI()"><i class="ti ti-check"></i></button>
+        <button type="button" class="action-btn ${item.flag === 'flag' ? 'active-flag' : ''}" onclick="checkedMatrixState[${index}].flag='flag';renderChecklistUI()"><i class="ti ti-alert-triangle"></i></button>
       </div>
     </div>
   `).join('');
 }
 
-function setFlag(index, flag) {
-  currentChecklist[index].flag = flag;
-  renderChecklist();
-}
-
 function addNewWatchToArray() {
   const period = document.getElementById('watch-period-input').value.trim();
-  const eng = document.getElementById('watch-eng-input').value.trim();
+  const eng = document.getElementById('lf-engineer').value.trim();
   const start = document.getElementById('watch-start-hours').value;
   const end = document.getElementById('watch-end-hours').value;
   
@@ -466,38 +773,178 @@ function addNewWatchToArray() {
   tray.innerHTML += `<span class="stat-pill pill-ok" style="padding:6px;margin-right:4px;margin-bottom:4px;display:inline-block;">${period}: ${eng}</span>`;
   
   document.getElementById('watch-period-input').value = '';
-  document.getElementById('watch-eng-input').value = '';
   document.getElementById('watch-start-hours').value = '';
   document.getElementById('watch-end-hours').value = '';
 }
 
-async function submitLog() {
-  const btn = document.getElementById('btn-submit-log');
-  btn.disabled = true; btn.innerText = 'Synchronizing logging logs...';
-  
+async function submitLogForm() {
+  const btn = document.getElementById('form-submit-btn');
+  const err = document.getElementById('form-error');
+  err.style.display = 'none';
+
+  const rpm = document.getElementById('r-rpm').value;
+  const oil = document.getElementById('r-oil').value;
+  const coolant = document.getElementById('r-coolant').value;
+
+  const readings = [];
+  if (rpm) readings.push({ key: 'rpm', label: 'RPM', value: parseFloat(rpm), unit: 'RPM' });
+  if (oil) readings.push({ key: 'oil_pressure', label: 'Oil Pressure', value: parseFloat(oil), unit: 'PSI' });
+  if (coolant) readings.push({ key: 'coolant_temp', label: 'Coolant Temp', value: parseFloat(coolant), unit: '°F' });
+
+  const payload = {
+    vessel_id: currentVessel.id,
+    log_number: document.getElementById('log-number').value,
+    log_date: document.getElementById('log-date').value,
+    engineer_name: document.getElementById('lf-engineer').value.trim(),
+    engine_hours: parseFloat(document.getElementById('r-hours').value) || null,
+    fuel_level: document.getElementById('r-fuel').value.trim(),
+    crew_names: document.getElementById('lf-crew').value.split(',').map(s=>s.trim()).filter(Boolean),
+    notes: document.getElementById('lf-notes').value.trim(),
+    check_items: checkedMatrixState,
+    watches: accumulatedWatchesPayload,
+    readings
+  };
+
   try {
-    const payload = {
-      vessel_id: currentVessel.id,
-      log_number: document.getElementById('log-number').value,
-      log_date: document.getElementById('log-date').value,
-      engineer_name: document.getElementById('log-engineer').value,
-      engine_hours: parseFloat(document.getElementById('log-hours').value) || null,
-      fuel_level: document.getElementById('log-fuel').value,
-      crew_names: document.getElementById('log-crew').value.split(',').map(s=>s.trim()).filter(Boolean),
-      notes: document.getElementById('log-notes').value,
-      check_items: currentChecklist,
-      watches: accumulatedWatchesPayload
-    };
-    
-    await api('/logs', 'POST', payload);
-    alert('Log system package processed successfully by office registries!');
-    openVessel(currentVessel.id);
-  } catch(e) { alert(e.message); }
-  finally { btn.disabled = false; btn.innerHTML = '<i class="ti ti-cloud-upload"></i> Dispatch Log Sheet to Fleet Office'; }
+    btn.disabled = true; btn.textContent = 'Transmitting data arrays...';
+    await rq('/api/logs', 'POST', payload);
+    document.getElementById('success-msg').textContent = 'The daily machinery log sheet parameters have been successfully written to the fleet office registries.';
+    show('screen-success');
+  } catch(e) { err.textContent = e.message; err.style.display = 'block'; }
+  finally { btn.disabled = false; btn.textContent = 'Transmit telemetry sheet to office'; }
 }
 
-// Global invocation setup gate
-window.addEventListener('DOMContentLoaded', () => { initApp(); });
+async function loadDashboard() {
+  try {
+    const data = await rq('/api/vessels');
+    allVessels = data.vessels || data;
+    
+    // Total Hulls Counter
+    document.getElementById('met-vessels').textContent = allVessels.length;
+    
+    const [lData, tData] = await Promise.all([
+      rq('/api/logs'),
+      rq('/api/trips')
+    ]);
+
+    const logs = lData.logs || [];
+    const trips = tData.trips || [];
+
+    document.getElementById('met-logs').textContent = logs.length;
+    document.getElementById('met-trips').textContent = trips.filter(t=>t.status==='active').length;
+
+    const totalFlags = logs.reduce((sum, l) => sum + (l.flag_count || 0), 0);
+    document.getElementById('met-flags').textContent = totalFlags;
+    document.getElementById('met-wo').textContent = "0";
+
+    const vList = document.getElementById('dash-vessel-list');
+    vList.innerHTML = allVessels.map(v => `
+      <div class="vessel-row" onclick="openVesselHub('${v.id}')">
+        <div class="vessel-icon"><i class="ti ti-ship"></i></div>
+        <div style="flex:1">
+          <div class="vrow-name">${v.name}</div>
+          <div class="vrow-meta">${v.vessel_type || 'Crewboat'}</div>
+        </div>
+        <i class="ti ti-chevron-right" style="color:var(--steel)"></i>
+      </div>`).join('');
+
+    const fList = document.getElementById('dash-flagged-list');
+    const flaggedLogs = logs.filter(l => l.flag_count > 0);
+    if (!flaggedLogs.length) {
+      fList.innerHTML = '<div class="empty-state">No systems flags outstanding in this fleet context.</div>';
+    } else {
+      fList.innerHTML = flaggedLogs.map(l => `
+        <div class="flag-row" onclick="openVesselHub('${l.vessel_id}')">
+          <div class="flag-icon"><i class="ti ti-alert-triangle"></i></div>
+          <div style="flex:1">
+            <strong>${l.vessel?.name || 'Vessel'} — #${l.log_number}</strong>
+            <div style="font-size:12px;color:var(--steel);margin-top:2px">${l.flag_count} items flagged by ${l.engineer_name}</div>
+          </div>
+        </div>`).join('');
+    }
+  } catch(e) { console.error(e); }
+}
+
+async function loadMaintenanceLog() {
+  const el = document.getElementById('maint-list');
+  el.innerHTML = '<div class="empty-state"><span class="spinner spinner-dark"></span>Syncing work log orders...</div>';
+  try {
+    const data = await rq('/api/maintenance');
+    maintLog = data.logs || data || [];
+    if (!maintLog.length) { el.innerHTML = '<div class="empty-state">No outstanding maintenance orders registered.</div>'; return; }
+    el.innerHTML = maintLog.map(m => `
+      <div class="work-order-row" onclick="openWorkOrderDetail('${m.id}')" style="cursor:pointer">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <strong>${m.vessel?.name || 'Vessel'} — System Parameters</strong>
+          <span class="status-badge status-${m.status}">${m.status.replace('_',' ')}</span>
+        </div>
+        <div style="font-size:12px;color:var(--steel);margin-top:4px">
+          ${m.description}
+        </div>
+      </div>`).join('');
+  } catch(e) { el.innerHTML = `<div class="empty-state text-danger">${e.message}</div>`; }
+}
+
+async function openWorkOrderDetail(id) {
+  show('screen-work-order-detail');
+  const detail = document.getElementById('wod-detail');
+  const timeline = document.getElementById('wod-timeline');
+  detail.innerHTML = '<div class="empty-state"><span class="spinner spinner-dark"></span>Loading parameters...</div>';
+  timeline.innerHTML = '';
+  
+  try {
+    const data = await rq('/api/maintenance/' + id);
+    const entry = data.log || data;
+    detail.innerHTML = `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h4 style="color:var(--gold)">Defect parameters</h4>
+          <span class="status-badge status-${entry.status}">${entry.status}</span>
+        </div>
+        <p style="font-size:14px;line-height:1.4">${entry.description}</p>
+        <button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="openUpdateModal('${entry.id}','${entry.status}')">Modify Status Signature</button>
+      </div>`;
+      
+    timeline.innerHTML = `<div class="log-row"><span style="font-size:12px;color:var(--steel)">Initial parameter registered by system pipeline sequence.</span></div>`;
+  } catch(e) { detail.innerHTML = `<div class="empty-state text-danger">${e.message}</div>`; }
+}
+
+let currentUpdateEntryId = null;
+function openUpdateModal(id, status) {
+  currentUpdateEntryId = id;
+  document.getElementById('update-status-select').value = status;
+  document.getElementById('update-work-performed').value = '';
+  document.getElementById('modal-update-order').classList.add('open');
+}
+function closeUpdateModal() { document.getElementById('modal-update-order').classList.remove('open'); }
+
+async function confirmUpdateWorkOrder() {
+  const status = document.getElementById('update-status-select').value;
+  const perf = document.getElementById('update-work-performed').value;
+  try {
+    await rq('/api/maintenance/' + currentUpdateEntryId + '/status', 'PUT', { status, work_performed: perf });
+    closeUpdateModal();
+    await openWorkOrderDetail(currentUpdateEntryId);
+  } catch(e) { alert(e.message); }
+}
+
+async function loadFleetStatus() {
+  const el = document.getElementById('fleet-status-vessel-list');
+  el.innerHTML = '<div class="empty-state"><span class="spinner spinner-dark"></span>Syncing fleet tracking matrix...</div>';
+  try {
+    const data = await rq('/api/vessels');
+    allVessels = data.vessels || data;
+    el.innerHTML = allVessels.map(v => `
+      <div class="card" style="margin-bottom:0.75rem">
+        <div style="font-size:15px;font-weight:700;color:var(--gold)">${v.name}</div>
+        <div style="font-size:12px;color:var(--steel);margin-top:2px">Asset Type: ${v.vessel_type || 'Crewboat'}</div>
+      </div>`).join('');
+  } catch(e) { el.innerHTML = `<div class="empty-state text-danger">${e.message}</div>`; }
+}
+
+function toggleNotifPanel() { document.getElementById('notif-panel').classList.toggle('open'); }
+
+window.addEventListener('DOMContentLoaded', () => { bootstrapSession(); });
 </script>
 </body>
 </html>
