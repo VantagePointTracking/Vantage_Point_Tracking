@@ -83,156 +83,127 @@ router.get("/:id", async (req, res) => {
 });
 
 // ── POST /api/logs ───────────────────────────────────────────
-// Submit a new daily log with combined flat checklist arrays and multi-engine tracking support
-router.post("/", async (req, res) => {
+// Submit a new daily log with support for multi-engine readings and multiple watch shifts
+router.post('/', async (req, res) => {
   const {
-    vessel_id,
-    log_number,
-    log_date,
-    watch,
-    engineer_name,
-    engine_hours,
-    fuel_level,
-    crew_names,
-    notes,
-    flag_count,
-    completion_pct,
-    check_items,
-    checks,
-    readings,
+    vessel_id, log_number, log_date,
+    engineer_name, engine_hours, fuel_level,
+    crew_names, notes, flag_count, completion_pct,
+    check_items, checks, readings, watches
   } = req.body;
 
   if (!vessel_id || !log_number || !log_date) {
-    return res
-      .status(400)
-      .json({ error: "vessel_id, log_number, and log_date are required" });
+    return res.status(400).json({ error: 'vessel_id, log_number, and log_date are required' });
   }
 
   try {
-    // Tenant Isolation Check
+    // 1. Tenant Isolation Check: Verify vessel ownership
     const { data: vessel } = await supabase
-      .from("vessels")
-      .select("id")
-      .eq("id", vessel_id)
-      .eq("company_id", req.user.company_id)
+      .from('vessels')
+      .select('id')
+      .eq('id', vessel_id)
+      .eq('company_id', req.user.company_id)
       .single();
 
-    if (!vessel)
-      return res
-        .status(403)
-        .json({ error: "Vessel not found or unauthorized access" });
+    if (!vessel) return res.status(403).json({ error: 'Vessel not found or unauthorized access' });
 
     const allItems = [];
-    let computedFlags = 0,
-      computedDone = 0,
-      computedTotal = 0;
+    let computedFlags = 0, computedDone = 0, computedTotal = 0;
 
-    // Process flat check_items array from mobile UI
+    // 2. Process check_items array from mobile UI
     if (check_items && Array.isArray(check_items)) {
-      check_items.forEach((item) => {
+      check_items.forEach(item => {
         computedTotal++;
         const status = item.checked
-          ? item.flag && item.flag !== "ok"
-            ? "flag"
-            : "ok"
-          : "na";
-        if (status === "ok") computedDone++;
-        if (status === "flag") computedFlags++;
-        const section = item.item_key
-          .replace(/^checks-/, "")
-          .replace(/_\d+$/, "");
+          ? (item.flag && item.flag !== 'ok' ? 'flag' : 'ok')
+          : 'na';
+        if (status === 'ok') computedDone++;
+        if (status === 'flag') computedFlags++;
+        const section = item.item_key.replace(/^checks-/, '').replace(/_\d+$/, '');
         allItems.push({
           company_id: req.user.company_id,
-          section: section || "general",
+          section: section || 'general',
           item_label: item.item_key,
           status,
-          is_custom: false,
+          is_custom: false
         });
       });
     }
 
-    // Process grouped checks configuration (for backward client compatibility)
-    if (checks && typeof checks === "object") {
-      Object.entries(checks).forEach(([section, items]) => {
-        items.forEach((item) => {
-          computedTotal++;
-          if (item.status === "ok") computedDone++;
-          if (item.status === "flag") computedFlags++;
-          allItems.push({
-            company_id: req.user.company_id,
-            section,
-            item_label: item.label,
-            status: item.status || "na",
-            is_custom: item.is_custom || false,
-          });
-        });
-      });
-    }
+    const finalCompletion = computedTotal > 0
+      ? Math.round((computedDone / computedTotal) * 100)
+      : (completion_pct || 0);
+    const finalFlags = computedTotal > 0 ? computedFlags : (flag_count || 0);
 
-    const finalCompletion =
-      computedTotal > 0
-        ? Math.round((computedDone / computedTotal) * 100)
-        : completion_pct || 0;
-    const finalFlags = computedTotal > 0 ? computedFlags : flag_count || 0;
-
-    // Write Master Log Entry
+    // 3. Write Master Log Entry (Notice: old single 'watch' column is removed here)
     const { data: log, error: logErr } = await supabase
-      .from("logs")
+      .from('logs')
       .insert({
         company_id: req.user.company_id,
         vessel_id,
         submitted_by: req.user.id,
-        log_number,
-        log_date,
-        watch,
-        engineer_name,
-        engine_hours,
-        fuel_level,
+        log_number, log_date,
+        engineer_name, engine_hours, fuel_level,
         crew_names: crew_names || [],
         notes,
         flag_count: finalFlags,
-        completion_pct: finalCompletion,
+        completion_pct: finalCompletion
       })
       .select()
       .single();
 
     if (logErr) throw logErr;
 
-    // Insert checklist items
+    // 4. Insert checklist items
     if (allItems.length > 0) {
       const { error: itemErr } = await supabase
-        .from("log_check_items")
-        .insert(allItems.map((i) => ({ ...i, log_id: log.id })));
+        .from('log_check_items')
+        .insert(allItems.map(i => ({ ...i, log_id: log.id })));
       if (itemErr) throw itemErr;
     }
 
-    // Insert Multi-Engine Telemetry mappings
+    // 5. Insert Multi-Engine Telemetry mappings
     if (readings && readings.length > 0) {
-      const { error: readErr } = await supabase.from("log_readings").insert(
-        readings.map((r) => ({
+      const { error: readErr } = await supabase
+        .from('log_readings')
+        .insert(readings.map(r => ({
           log_id: log.id,
           company_id: req.user.company_id,
-          engine_id: r.engine_id || null, // Structural multi-engine telemetry parameter
+          engine_id: r.engine_id || null,
           field_key: r.key,
           field_label: r.label,
           value: r.value,
-          unit: r.unit,
-        })),
-      );
+          unit: r.unit
+        })));
       if (readErr) throw readErr;
     }
 
+    // 6. NEW LOGIC: Batch insert multiple watches/shifts attached to this single log sheet
+    const finalWatches = Array.isArray(watches) ? watches : [];
+    if (finalWatches.length > 0) {
+      const { error: watchErr } = await supabase
+        .from('log_watches')
+        .insert(finalWatches.map(w => ({
+          log_id: log.id,
+          company_id: req.user.company_id,
+          watch_period: w.watch_period,
+          engineer_name: w.engineer_name || engineer_name,
+          engine_hours_start: w.engine_hours_start || null,
+          engine_hours_end: w.engine_hours_end || null
+        })));
+      if (watchErr) throw watchErr;
+    }
+
     res.status(201).json({
-      message: "Log submitted successfully",
+      message: 'Log sheet and watch entries submitted successfully',
       log_id: log.id,
       flag_count: finalFlags,
-      completion_pct: finalCompletion,
+      completion_pct: finalCompletion
     });
+
   } catch (err) {
-    console.error("Submission pipeline failure:", err.message);
-    res
-      .status(500)
-      .json({ error: "Failed to submit log entry", detail: err.message });
+    console.error('Submission pipeline failure:', err.message);
+    res.status(500).json({ error: 'Failed to submit engine log sheet structure', detail: err.message });
   }
 });
 
