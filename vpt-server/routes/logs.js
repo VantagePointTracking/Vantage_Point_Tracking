@@ -1,89 +1,87 @@
-const express = require("express");
-const supabase = require("../lib/supabase");
-const { requireAuth } = require("../middleware/auth");
+const express = require('express');
+const supabase = require('../lib/supabase');
+const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 
-// All log sheets routes require explicit session login authentication
 router.use(requireAuth);
 
 // ── GET /api/logs ────────────────────────────────────────────
-// Admin/office see all fleet logs; crew see only their own submissions
-router.get("/", async (req, res) => {
+router.get('/', async (req, res) => {
   const { vessel_id, date_from, date_to, flagged } = req.query;
 
   try {
     let query = supabase
-      .from("logs")
-      .select(
-        `
-        id, vessel_id, log_number, log_date, watch, engineer_name,
+      .from('logs')
+      .select(`
+        id, vessel_id, log_number, log_date, engineer_name,
         engine_hours, fuel_level, crew_names, flag_count,
         completion_pct, submitted_at, notes,
         vessel:vessels(id, name, vessel_type)
-      `,
-      )
-      .eq("company_id", req.user.company_id)
-      .order("submitted_at", { ascending: false });
+      `)
+      .eq('company_id', req.user.company_id)
+      .order('submitted_at', { ascending: false });
 
-    // Crew access restriction rule
-    if (req.user.role === "crew") {
-      query = query.eq("submitted_by", req.user.id);
+    if (req.user.role === 'crew') {
+      query = query.eq('submitted_by', req.user.id);
     }
 
-    if (vessel_id) query = query.eq("vessel_id", vessel_id);
-    if (date_from) query = query.gte("log_date", date_from);
-    if (date_to) query = query.lte("log_date", date_to);
-    if (flagged === "true") query = query.gt("flag_count", 0);
+    if (vessel_id) query = query.eq('vessel_id', vessel_id);
+    if (date_from) query = query.gte('log_date', date_from);
+    if (date_to)   query = query.lte('log_date', date_to);
+    if (flagged === 'true') query = query.gt('flag_count', 0);
 
     const { data, error } = await query;
     if (error) throw error;
     res.json({ logs: data });
+
   } catch (err) {
-    console.error("Fetch logs error:", err.message);
-    res.status(500).json({ error: "Failed to fetch logs" });
+    console.error('Fetch logs error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch logs' });
   }
 });
 
 // ── GET /api/logs/:id ────────────────────────────────────────
-// Fetch comprehensive metadata for a specific engine room log log entry
-router.get("/:id", async (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
     const { data: log, error } = await supabase
-      .from("logs")
+      .from('logs')
       .select(`*, vessel:vessels(id, name, vessel_type)`)
-      .eq("id", req.params.id)
-      .eq("company_id", req.user.company_id)
+      .eq('id', req.params.id)
+      .eq('company_id', req.user.company_id)
       .single();
 
-    if (error || !log) return res.status(404).json({ error: "Log not found" });
+    if (error || !log) return res.status(404).json({ error: 'Log not found' });
 
-    // Crew validation gate
-    if (req.user.role === "crew" && log.submitted_by !== req.user.id) {
-      return res
-        .status(403)
-        .json({ error: "Access denied: Unauthorized entry record" });
+    if (req.user.role === 'crew' && log.submitted_by !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied' });
     }
 
     const { data: checkItems } = await supabase
-      .from("log_check_items")
-      .select("*")
-      .eq("log_id", req.params.id)
-      .order("section");
+      .from('log_check_items')
+      .select('*')
+      .eq('log_id', req.params.id)
+      .order('section');
 
     const { data: readings } = await supabase
-      .from("log_readings")
-      .select("*")
-      .eq("log_id", req.params.id);
+      .from('log_readings')
+      .select('*')
+      .eq('log_id', req.params.id);
 
-    res.json({ log, checkItems: checkItems || [], readings: readings || [] });
+    const { data: watches } = await supabase
+      .from('log_watches')
+      .select('*')
+      .eq('log_id', req.params.id)
+      .order('created_at');
+
+    res.json({ log, checkItems: checkItems || [], readings: readings || [], watches: watches || [] });
+
   } catch (err) {
-    console.error("Fetch log detail error:", err.message);
-    res.status(500).json({ error: "Failed to fetch log details" });
+    console.error('Fetch log detail error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch log details' });
   }
 });
 
 // ── POST /api/logs ───────────────────────────────────────────
-// Submit a new daily log with support for multi-engine readings and multiple watch shifts
 router.post('/', async (req, res) => {
   const {
     vessel_id, log_number, log_date,
@@ -97,7 +95,6 @@ router.post('/', async (req, res) => {
   }
 
   try {
-    // 1. Tenant Isolation Check: Verify vessel ownership
     const { data: vessel } = await supabase
       .from('vessels')
       .select('id')
@@ -110,7 +107,6 @@ router.post('/', async (req, res) => {
     const allItems = [];
     let computedFlags = 0, computedDone = 0, computedTotal = 0;
 
-    // 2. Process check_items array from mobile UI
     if (check_items && Array.isArray(check_items)) {
       check_items.forEach(item => {
         computedTotal++;
@@ -130,12 +126,28 @@ router.post('/', async (req, res) => {
       });
     }
 
+    if (checks && typeof checks === 'object') {
+      Object.entries(checks).forEach(([section, items]) => {
+        items.forEach(item => {
+          computedTotal++;
+          if (item.status === 'ok') computedDone++;
+          if (item.status === 'flag') computedFlags++;
+          allItems.push({
+            company_id: req.user.company_id,
+            section,
+            item_label: item.label,
+            status: item.status || 'na',
+            is_custom: item.is_custom || false
+          });
+        });
+      });
+    }
+
     const finalCompletion = computedTotal > 0
       ? Math.round((computedDone / computedTotal) * 100)
       : (completion_pct || 0);
     const finalFlags = computedTotal > 0 ? computedFlags : (flag_count || 0);
 
-    // 3. Write Master Log Entry (Notice: old single 'watch' column is removed here)
     const { data: log, error: logErr } = await supabase
       .from('logs')
       .insert({
@@ -154,7 +166,6 @@ router.post('/', async (req, res) => {
 
     if (logErr) throw logErr;
 
-    // 4. Insert checklist items
     if (allItems.length > 0) {
       const { error: itemErr } = await supabase
         .from('log_check_items')
@@ -162,7 +173,6 @@ router.post('/', async (req, res) => {
       if (itemErr) throw itemErr;
     }
 
-    // 5. Insert Multi-Engine Telemetry mappings
     if (readings && readings.length > 0) {
       const { error: readErr } = await supabase
         .from('log_readings')
@@ -178,7 +188,6 @@ router.post('/', async (req, res) => {
       if (readErr) throw readErr;
     }
 
-    // 6. NEW LOGIC: Batch insert multiple watches/shifts attached to this single log sheet
     const finalWatches = Array.isArray(watches) ? watches : [];
     if (finalWatches.length > 0) {
       const { error: watchErr } = await supabase
@@ -208,119 +217,98 @@ router.post('/', async (req, res) => {
 });
 
 // ── PUT /api/logs/:id ────────────────────────────────────────
-// Step 2.3 Refactor: Configurable/Extended log editing window
-router.put("/:id", async (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     const { data: existing, error: fetchErr } = await supabase
-      .from("logs")
-      .select("id, submitted_at, submitted_by, company_id")
-      .eq("id", req.params.id)
-      .eq("company_id", req.user.company_id)
+      .from('logs')
+      .select('id, submitted_at, submitted_by, company_id')
+      .eq('id', req.params.id)
+      .eq('company_id', req.user.company_id)
       .single();
 
-    if (fetchErr || !existing)
-      return res.status(404).json({ error: "Log not found" });
+    if (fetchErr || !existing) return res.status(404).json({ error: 'Log not found' });
 
-    // Authorization Guard
-    if (req.user.role === "crew" && existing.submitted_by !== req.user.id) {
-      return res.status(403).json({ error: "Access denied" });
+    if (req.user.role === 'crew' && existing.submitted_by !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied' });
     }
 
-    // Step 2.3 Fixed parameters: Standardizing window to a reliable 120 minutes (2 hours) for field ops flexibility
-    const ageMinutes =
-      (Date.now() - new Date(existing.submitted_at).getTime()) / 60000;
+    const ageMinutes = (Date.now() - new Date(existing.submitted_at).getTime()) / 60000;
     if (ageMinutes > 120) {
-      return res
-        .status(403)
-        .json({
-          error:
-            "Log sheet edit window has closed (120 minute threshold exceeded)",
-        });
+      return res.status(403).json({ error: 'Log sheet edit window has closed' });
     }
 
     const {
-      watch,
-      engineer_name,
-      engine_hours,
-      fuel_level,
-      notes,
-      flag_count,
-      completion_pct,
-      check_items,
+      engineer_name, engine_hours, fuel_level,
+      notes, flag_count, completion_pct, check_items, watches
     } = req.body;
 
     const allItems = [];
-    let computedFlags = 0,
-      computedDone = 0,
-      computedTotal = 0;
+    let computedFlags = 0, computedDone = 0, computedTotal = 0;
 
     if (check_items && Array.isArray(check_items)) {
-      check_items.forEach((item) => {
+      check_items.forEach(item => {
         computedTotal++;
         const status = item.checked
-          ? item.flag && item.flag !== "ok"
-            ? "flag"
-            : "ok"
-          : "na";
-        if (status === "ok") computedDone++;
-        if (status === "flag") computedFlags++;
-        const section = item.item_key
-          .replace(/^checks-/, "")
-          .replace(/_\d+$/, "");
+          ? (item.flag && item.flag !== 'ok' ? 'flag' : 'ok')
+          : 'na';
+        if (status === 'ok') computedDone++;
+        if (status === 'flag') computedFlags++;
+        const section = item.item_key.replace(/^checks-/, '').replace(/_\d+$/, '');
         allItems.push({
           log_id: existing.id,
           company_id: req.user.company_id,
           section,
           item_label: item.item_key,
           status,
-          is_custom: false,
+          is_custom: false
         });
       });
     }
 
-    const finalCompletion =
-      computedTotal > 0
-        ? Math.round((computedDone / computedTotal) * 100)
-        : completion_pct || 0;
-    const finalFlags = computedTotal > 0 ? computedFlags : flag_count || 0;
+    const finalCompletion = computedTotal > 0
+      ? Math.round((computedDone / computedTotal) * 100)
+      : (completion_pct || 0);
+    const finalFlags = computedTotal > 0 ? computedFlags : (flag_count || 0);
 
     const { error: updateErr } = await supabase
-      .from("logs")
+      .from('logs')
       .update({
-        watch,
-        engineer_name,
-        engine_hours,
-        fuel_level,
-        notes,
+        engineer_name, engine_hours, fuel_level, notes,
         flag_count: finalFlags,
-        completion_pct: finalCompletion,
+        completion_pct: finalCompletion
       })
-      .eq("id", existing.id);
+      .eq('id', existing.id);
 
     if (updateErr) throw updateErr;
 
-    // Clean and replace child check rows
     if (allItems.length > 0) {
-      await supabase.from("log_check_items").delete().eq("log_id", existing.id);
-      const { error: itemErr } = await supabase
-        .from("log_check_items")
-        .insert(allItems);
+      await supabase.from('log_check_items').delete().eq('log_id', existing.id);
+      const { error: itemErr } = await supabase.from('log_check_items').insert(allItems);
       if (itemErr) throw itemErr;
     }
 
-    res.json({
-      message: "Log sheet updated successfully",
-      flag_count: finalFlags,
-      completion_pct: finalCompletion,
-    });
+    if (Array.isArray(watches)) {
+      await supabase.from('log_watches').delete().eq('log_id', existing.id);
+      if (watches.length > 0) {
+        const { error: watchErr } = await supabase
+          .from('log_watches')
+          .insert(watches.map(w => ({
+            log_id: existing.id,
+            company_id: req.user.company_id,
+            watch_period: w.watch_period,
+            engineer_name: w.engineer_name || engineer_name,
+            engine_hours_start: w.engine_hours_start || null,
+            engine_hours_end: w.engine_hours_end || null
+          })));
+        if (watchErr) throw watchErr;
+      }
+    }
+
+    res.json({ message: 'Log sheet updated successfully', flag_count: finalFlags, completion_pct: finalCompletion });
+
   } catch (err) {
-    console.error("Update log error:", err.message);
-    res
-      .status(500)
-      .json({
-        error: "Failed to update engine log sheet",
-        detail: err.message,
-      });
+    console.error('Update log error:', err.message);
+    res.status(500).json({ error: 'Failed to update engine log sheet', detail: err.message });
   }
 });
 
