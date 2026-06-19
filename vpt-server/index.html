@@ -2172,14 +2172,6 @@ function closeTripAction() {
 // PRE-DEPARTURE
 // ═══════════════════════════════════════════════════════════════
 
-// ═══════════════════════════════════════════════════════════════
-// PRE-DEPARTURE (BULLETPROOF RENDERING)
-// ═══════════════════════════════════════════════════════════════
-
-// ═══════════════════════════════════════════════════════════════
-// PRE-DEPARTURE (COMPLETE BLOCK)
-// ═══════════════════════════════════════════════════════════════
-
 function buildPDChecks(sectionId, items) {
   const el = document.getElementById(sectionId);
   if (!el) return;
@@ -2229,7 +2221,7 @@ function buildPDChecks(sectionId, items) {
     const sel = document.createElement('select');
     sel.className = 'flag-select';
     sel.id = 'pd_flag_' + key;
-    sel.style.display = 'none'; // Hidden by default
+    sel.style.display = 'none'; // Hidden by default (removes invisible shield!)
     sel.style.width = '130px';
     sel.style.padding = '6px';
     sel.style.backgroundColor = 'var(--surface2)';
@@ -2244,7 +2236,6 @@ function buildPDChecks(sectionId, items) {
     row.appendChild(sel);
     el.appendChild(row);
   });
-  
   updatePDProgress();
 }
 
@@ -2252,7 +2243,7 @@ function pdToggleCheck(key, checked) {
   pdCheckState[key].checked = checked;
   const sel = document.getElementById('pd_flag_' + key);
   if (sel) {
-    sel.style.display = checked ? 'block' : 'none'; // Appears when checked!
+    sel.style.display = checked ? 'block' : 'none'; // Shows dropdown when checked
   }
   updatePDProgress();
 }
@@ -2268,6 +2259,97 @@ function updatePDProgress() {
   if (badge) {
     badge.textContent = done + ' / ' + total;
     badge.className = 'badge ' + (done === total ? 'badge-ok' : 'badge-flag');
+  }
+}
+
+async function startPredeparture() {
+  closeTripAction();
+  try {
+    const res = await fetch(API + '/api/trips', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token},
+      body: JSON.stringify({vessel_id: currentTripVessel.id})
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    currentTrip = data.trip;
+  } catch(e) {
+    alert('Could not start trip: ' + e.message);
+    return;
+  }
+  openPredepartureForm();
+}
+
+function continuePredeparture() {
+  closeTripAction();
+  openPredepartureForm();
+}
+
+function openPredepartureForm() {
+  document.getElementById('pd-vessel-name').textContent = currentTripVessel.name;
+  document.getElementById('pd-engineer-name').value = '';
+  document.getElementById('pd-fuel-start').value = '';
+  document.getElementById('pd-trip-number').value = currentTrip && currentTrip.trip_number ? currentTrip.trip_number : '';
+  document.getElementById('pd-notes').value = '';
+  document.getElementById('pd-submit-btn').disabled = false;
+  document.getElementById('pd-submit-btn').textContent = 'Submit & depart';
+  
+  pdCheckState = {};
+  buildPDChecks('pd-checks-safety', CB_CHECKS.safety);
+  buildPDChecks('pd-checks-startup', CB_CHECKS.startup);
+  buildPDChecks('pd-checks-fluids', CB_CHECKS.fluids);
+  buildPDChecks('pd-checks-final', CB_CHECKS.final);
+  show('screen-predeparture');
+}
+
+async function submitPredeparture() {
+  const engineer = document.getElementById('pd-engineer-name').value.trim();
+  if (!engineer) { alert('Please enter the captain / engineer name.'); return; }
+  if (!currentTrip) { alert('No active trip found.'); return; }
+  
+  const btn = document.getElementById('pd-submit-btn');
+  btn.innerHTML = '<span class="spinner"></span>Submitting...';
+  btn.disabled = true;
+  
+  const checkItems = Object.entries(pdCheckState).map(([key, val]) => ({key, checked: val.checked}));
+  const tripNum = document.getElementById('pd-trip-number').value.trim();
+  
+  try {
+    if (tripNum) {
+      await fetch(API + '/api/trips/' + currentTrip.id, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token},
+        body: JSON.stringify({trip_number: tripNum, fuel_start: parseFloat(document.getElementById('pd-fuel-start').value) || null})
+      }).catch(() => {});
+    }
+    
+    const res = await fetch(API + '/api/trips/' + currentTrip.id + '/predeparture', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token},
+      body: JSON.stringify({
+        check_items: checkItems,
+        notes: document.getElementById('pd-notes').value
+      })
+    });
+    
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    
+    alert('Pre-departure submitted! Trip is now active.');
+    
+    // Refresh the UI based on role
+    const role = currentUser ? currentUser.role : 'crew';
+    if (role === 'crew') { 
+        await loadCrewVessels();
+        show('screen-vessels'); 
+    } else { 
+        await loadDashboard();
+        show('screen-dashboard'); 
+    }
+  } catch(e) {
+    alert('Error submitting pre-departure: ' + e.message);
+    btn.innerHTML = 'Submit & depart';
+    btn.disabled = false;
   }
 }
 
