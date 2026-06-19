@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Vantage Point Tracking</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
 <style>
@@ -14,31 +14,44 @@
   --border:#333333;
 }
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--black);color:var(--cream);min-height:100vh}
-.screen{display:none;padding:1rem;max-width:720px;margin:0 auto;padding-bottom:80px;}
+.screen{display:none;padding:1rem;max-width:720px;margin:0 auto;padding-bottom:80px}
 .screen.active{display:block}
 
 /* TOPBAR */
 .topbar-main{background:var(--surface);border-bottom:1px solid var(--border);padding:0 1rem;height:56px;display:none;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
 .brand{font-weight:700;letter-spacing:1px;color:var(--gold);display:flex;align-items:center;gap:0.5rem}
 
-/* NAV */
+/* GLOBAL NAV */
 .nav-grid{display:grid;grid-template-columns:repeat(5,1fr);background:var(--surface);border-top:1px solid var(--border);position:fixed;bottom:0;left:0;right:0;height:64px;display:none;z-index:100;padding-bottom:env(safe-area-inset-bottom)}
-.nav-item{display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--steel);text-decoration:none;font-size:10px;gap:2px}
+.nav-item{display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--steel);text-decoration:none;font-size:10px;gap:2px;cursor:pointer}
 .nav-item.active{color:var(--gold)}
 .nav-item i{font-size:20px}
 
-/* COMPONENTS */
+/* DYNAMIC STATUS BOARD (MATCHING THE SCREENSHOT GRID) */
+.vessel-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;margin-top:0.5rem}
+.vessel-card-trip{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem;text-align:center;position:relative;cursor:pointer}
+.vessel-icon{width:48px;height:48px;border-radius:50%;background:var(--surface2);color:var(--gold);display:flex;align-items:center;justify-content:center;margin:0 auto 0.75rem auto;font-size:20px;border:1px solid var(--border)}
+.vname{font-size:16px;font-weight:700;color:var(--cream);margin-bottom:2px}
+.pct-bar-bg{background:var(--surface2);height:6px;border-radius:3px;width:100%;margin:0.75rem 0;overflow:hidden}
+.pct-bar-fill{background:var(--gold);height:100%;border-radius:3px;width:100%}
+
+/* METRIC ROW BANNER */
+.dash-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0.75rem;margin-bottom:1.25rem}
+.metric-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:0.75rem;text-align:center}
+.metric-val{font-size:20px;font-weight:700;color:var(--cream);margin-bottom:2px}
+.metric-label{font-size:10px;color:var(--steel);text-transform:uppercase;letter-spacing:0.5px}
+
+/* FORM ELEMENTS */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:1rem}
 .row{display:flex;flex-wrap:wrap;margin:0 -0.5rem}
 .col-md-6{width:50%;padding:0 0.5rem}
-.col-md-4{width:33.33%;padding:0 0.5rem}
 .col-md-3{width:25%;padding:0 0.5rem}
 .col-6{width:50%;padding:0 0.5rem}
 .col-12{width:100%;padding:0 0.5rem}
 .g-2{margin:0 -0.25rem}.g-2 > [class*="col-"]{padding:0 0.25rem;margin-bottom:0.5rem}
 
 .btn{background:var(--surface2);color:var(--cream);border:1px solid var(--border);padding:0.75rem 1rem;border-radius:6px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:0.5rem;width:100%}
-.btn-gold{background:var(--gold);color:var(--black);border:none}
+.btn-gold{background:var(--gold);color:var(--black);border:none;font-weight:600}
 .btn:disabled{opacity:0.5;cursor:not-allowed}
 
 .form-group{margin-bottom:1rem}
@@ -46,18 +59,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .form-control{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--cream);padding:0.75rem;border-radius:6px;font-size:14px}
 .form-control:focus{outline:none;border-color:var(--gold)}
 
-.stat-pill{display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600}
-.pill-ok{background:rgba(39,174,96,0.2);color:var(--green)}
-.pill-warn{background:rgba(230,126,34,0.2);color:var(--amber)}
-.pill-danger{background:rgba(192,57,43,0.2);color:var(--red)}
+.stat-pill{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600}
+.pill-ok{background:rgba(39,174,96,0.15);color:var(--green)}
+.pill-warn{background:rgba(230,126,34,0.15);color:var(--amber)}
+.pill-danger{background:rgba(192,57,43,0.15);color:var(--red)}
 
-/* DASHBOARD GRIDS */
-.dash-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0.75rem;margin-bottom:1rem}
-.metric-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem;text-align:center}
-.metric-val{font-size:24px;font-weight:700;color:var(--cream);margin-bottom:0.25rem}
-.metric-label{font-size:11px;color:var(--steel);text-transform:uppercase;letter-spacing:0.5px}
-
-/* TABS */
 .tab-scroll{display:flex;overflow-x:auto;gap:0.5rem;padding-bottom:0.5rem;margin-bottom:1rem;scrollbar-width:none}
 .tab-scroll::-webkit-scrollbar{display:none}
 .tab-btn{background:var(--surface);border:1px solid var(--border);color:var(--steel);padding:0.5rem 1rem;border-radius:20px;font-size:13px;white-space:nowrap;cursor:pointer}
@@ -65,31 +71,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .tab-pane{display:none}
 .tab-pane.active{display:block}
 
-/* LISTS */
 .list-item{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:0.75rem;display:flex;align-items:center;justify-content:space-between;cursor:pointer}
 .log-row{background:var(--surface);border-left:4px solid var(--steel);padding:0.75rem;margin-bottom:0.5rem;border-radius:0 6px 6px 0}
-
-/* CHECKLIST */
-.check-item{display:flex;align-items:center;justify-content:space-between;padding:0.75rem 0;border-bottom:1px solid var(--border)}
 .check-actions{display:flex;gap:0.5rem}
 .action-btn{background:var(--surface2);border:1px solid var(--border);color:var(--cream);width:36px;height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .action-btn.active-ok{background:var(--green);color:white;border-color:var(--green)}
 .action-btn.active-flag{background:var(--red);color:white;border-color:var(--red)}
-
-/* MODAL */
-.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:999;display:none;align-items:center;justify-content:center;padding:1rem}
-.modal-overlay.active{display:flex}
-.modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;width:100%;max-width:500px;padding:1.5rem}
-.modal-title{font-size:18px;font-weight:600;margin-bottom:1rem;color:var(--gold)}
-.modal-actions{display:flex;gap:0.5rem;margin-top:1.5rem}
-
+.badge-tray{display:flex;flex-wrap:wrap;gap:0.25rem;margin-top:0.5rem}
 .empty-state{text-align:center;padding:2rem 1rem;color:var(--steel);font-size:14px;background:var(--surface2);border-radius:8px;border:1px dashed var(--border)}
 </style>
 </head>
 <body>
 
 <div class="topbar-main" id="topbar">
-  <div class="brand"><i class="ti ti-anchor"></i> VPT</div>
+  <div class="brand"><i class="ti ti-anchor"></i> Vantage Point Tracking</div>
   <div id="user-chip" style="font-size:12px;color:var(--steel);background:var(--surface2);padding:4px 8px;border-radius:4px;border:1px solid var(--border)"></div>
 </div>
 
@@ -97,442 +92,50 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div style="text-align:center;margin:4rem 0 2rem 0">
     <i class="ti ti-anchor" style="font-size:48px;color:var(--gold)"></i>
     <h2 style="margin-top:0.5rem">Vantage Point Tracking</h2>
-    <p style="color:var(--steel);font-size:14px">Marine Engine Room SaaS</p>
+    <p style="color:var(--steel);font-size:14px">Marine Fleet Intelligence Infrastructure</p>
   </div>
   <div class="card">
     <div class="form-group">
-      <label>Email</label>
+      <label>Email Connection String</label>
       <input type="email" id="login-email" class="form-control" value="test_crew@vantagepoint.com">
     </div>
     <div class="form-group">
-      <label>Password</label>
+      <label>Password Signature</label>
       <input type="password" id="login-pass" class="form-control" value="password123">
     </div>
-    <button class="btn btn-gold" id="btn-login" onclick="login()">Sign In</button>
+    <button class="btn btn-gold" id="btn-login" onclick="login()">Authenticate Session</button>
   </div>
 </div>
 
 <div class="screen" id="s-dash">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
-    <h3 id="dash-greeting">Dashboard</h3>
+    <h3 id="dash-greeting">Fleet Dashboard</h3>
   </div>
 
   <div class="tab-scroll" id="dash-tabs">
-    <button class="tab-btn active" onclick="switchDashTab('overview')">Overview</button>
-    <button class="tab-btn" onclick="switchDashTab('fleet')">Fleet List</button>
+    <button class="tab-btn active" onclick="switchDashTab('overview')">Status Board</button>
     <button class="tab-btn mgr-only" onclick="switchDashTab('maintenance')">Maintenance</button>
-    <button class="tab-btn mgr-only" onclick="switchDashTab('safety')">Safety & Certs</button>
+    <button class="tab-btn mgr-only" onclick="switchDashTab('safety')">Compliance & Safety</button>
   </div>
 
   <div class="tab-pane active" id="tab-overview">
     <div class="dash-grid mgr-only">
-      <div class="metric-card">
-        <div class="metric-val" id="met-vessels">-</div>
-        <div class="metric-label">Active Vessels</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-val" id="met-logs" style="color:var(--gold)">-</div>
-        <div class="metric-label">Logs Today</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-val" id="met-flags" style="color:var(--amber)">-</div>
-        <div class="metric-label">Active Flags</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-val" id="met-wo" style="color:var(--red)">-</div>
-        <div class="metric-label">Open W.O.</div>
-      </div>
+      <div class="metric-card"><div class="metric-val" id="met-vessels">-</div><div class="metric-label">Assigned Hull</div></div>
+      <div class="metric-card"><div class="metric-val" id="met-logs" style="color:var(--gold)">-</div><div class="metric-label">Active Trips</div></div>
+      <div class="metric-card"><div class="metric-val" id="met-flags" style="color:var(--amber)">-</div><div class="metric-label">System Flags</div></div>
+      <div class="metric-card"><div class="metric-val" id="met-wo" style="color:var(--red)">-</div><div class="metric-label">Pending WO</div></div>
     </div>
-    <h4 style="margin-bottom:0.75rem">Recent Activity</h4>
-    <div id="recent-activity-list"></div>
-  </div>
-
-  <div class="tab-pane" id="tab-fleet">
-    <div id="fleet-list"></div>
+    <h4 style="margin-bottom:0.75rem">Operational Fleet Manifest</h4>
+    <div id="fleet-list" class="vessel-grid"></div>
   </div>
 
   <div class="tab-pane" id="tab-maintenance">
     <div style="display:flex;justify-content:space-between;margin-bottom:1rem">
-      <h4>Work Orders</h4>
-      <button class="btn" style="width:auto;padding:4px 8px;font-size:12px" onclick="openWorkOrderModal()"><i class="ti ti-plus"></i> New W.O.</button>
+      <h4>Open Urgent Work Orders</h4>
     </div>
-    <div id="wo-list"></div>
+    <div id="wo-list"><div class="empty-state">No open maintenance parameters.</div></div>
   </div>
 
   <div class="tab-pane" id="tab-safety">
-    <h4>Expiring Certificates (30 Days)</h4>
-    <div id="cert-list" style="margin-top:1rem"></div>
-  </div>
-</div>
-
-<div class="screen" id="s-vessel">
-  <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem">
-    <button class="btn" style="width:40px;height:40px;padding:0" onclick="showPage('dash')"><i class="ti ti-arrow-left"></i></button>
-    <h3 id="vd-name">Vessel Name</h3>
-  </div>
-
-  <div class="dash-grid" style="grid-template-columns:repeat(3,1fr)">
-    <button class="btn btn-gold" style="flex-direction:column;gap:0.25rem;padding:1rem 0" onclick="openLogForm()">
-      <i class="ti ti-clipboard-text" style="font-size:24px"></i>
-      <span style="font-size:11px">Daily Log</span>
-    </button>
-    <button class="btn" style="flex-direction:column;gap:0.25rem;padding:1rem 0" onclick="alert('Engine telemetry tier locked.')">
-      <i class="ti ti-engine" style="font-size:24px"></i>
-      <span style="font-size:11px">Telemetry</span>
-    </button>
-    <button class="btn" style="flex-direction:column;gap:0.25rem;padding:1rem 0" onclick="alert('Trip routing tier locked.')">
-      <i class="ti ti-route" style="font-size:24px"></i>
-      <span style="font-size:11px">Voyages</span>
-    </button>
-  </div>
-
-  <h4 style="margin-bottom:0.75rem">Recent Logs</h4>
-  <div id="vd-logs"></div>
-</div>
-
-<div class="screen" id="s-logform">
-  <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem">
-    <button class="btn" style="width:40px;height:40px;padding:0" onclick="showPage('vessel')"><i class="ti ti-x"></i></button>
-    <h3>New Daily Log</h3>
-  </div>
-
-  <div class="card">
-    <div class="row g-2">
-      <div class="col-md-6"><div class="form-group"><label>Log #</label><input type="text" id="log-number" class="form-control" readonly></div></div>
-      <div class="col-md-6"><div class="form-group"><label>Date</label><input type="date" id="log-date" class="form-control"></div></div>
-      <div class="col-md-6"><div class="form-group"><label>Chief Engineer</label><input type="text" id="log-engineer" class="form-control"></div></div>
-    </div>
-  </div>
-
-  <div class="card">
-    <h4 style="margin-bottom:0.75rem;color:var(--gold)"><i class="ti ti-clock"></i> Shift / Watch Rotations</h4>
-    <div id="watches-badge-tray" class="badge-tray" style="margin-bottom: 10px;"></div>
-    
-    <div class="row g-2 mb-2">
-      <div class="col-md-3 col-6"><input type="text" id="watch-period-input" class="form-control" placeholder="Period (0600-1200)"></div>
-      <div class="col-md-3 col-6"><input type="text" id="watch-eng-input" class="form-control" placeholder="Watch Engineer"></div>
-      <div class="col-md-3 col-6"><input type="number" step="0.1" id="watch-start-hours" class="form-control" placeholder="Start Hrs"></div>
-      <div class="col-md-3 col-6"><input type="number" step="0.1" id="watch-end-hours" class="form-control" placeholder="End Hrs"></div>
-    </div>
-    <button type="button" class="btn" style="background:var(--surface2);color:var(--cream);border:1px solid var(--border);" onclick="addNewWatchToArray()">
-      <i class="ti ti-plus"></i> Add Watch Shift Session
-    </button>
-  </div>
-
-  <h4 style="margin-bottom:0.75rem">Checklists</h4>
-  <div id="checklist-container" style="margin-bottom:1rem"></div>
-
-  <div class="card">
-    <div class="row g-2">
-      <div class="col-md-6"><div class="form-group"><label>Total Engine Hours</label><input type="number" id="log-hours" class="form-control" step="0.1"></div></div>
-      <div class="col-md-6"><div class="form-group"><label>Fuel Level</label><input type="text" id="log-fuel" class="form-control"></div></div>
-      <div class="col-12"><div class="form-group"><label>Crew Onboard (comma separated)</label><input type="text" id="log-crew" class="form-control"></div></div>
-      <div class="col-12"><div class="form-group"><label>Notes</label><textarea id="log-notes" class="form-control" rows="3"></textarea></div></div>
-    </div>
-  </div>
-
-  <button class="btn btn-gold" id="btn-submit-log" onclick="submitLog()"><i class="ti ti-cloud-upload"></i> Submit Log to Office</button>
-</div>
-
-<div class="screen" id="s-settings">
-  <h3>Settings</h3>
-  <div class="card" style="margin-top:1rem">
-    <p style="color:var(--steel);margin-bottom:1rem">Logged in as: <strong id="set-name" style="color:var(--cream)">-</strong></p>
-    <button class="btn" onclick="logout()"><i class="ti ti-logout"></i> Logout</button>
-  </div>
-</div>
-
-<div class="nav-grid" id="navbar">
-  <a class="nav-item active" id="nav-dash" onclick="showPage('dash')"><i class="ti ti-layout-dashboard"></i>Dash</a>
-  <a class="nav-item" id="nav-fleet" onclick="showPage('dash'); switchDashTab('fleet')"><i class="ti ti-ship"></i>Fleet</a>
-  <a class="nav-item mgr-only" id="nav-maint" onclick="showPage('dash'); switchDashTab('maintenance')"><i class="ti ti-wrench"></i>Maint</a>
-  <a class="nav-item mgr-only" id="nav-safety" onclick="showPage('dash'); switchDashTab('safety')"><i class="ti ti-shield-check"></i>Safety</a>
-  <a class="nav-item" id="nav-settings" onclick="showPage('settings')"><i class="ti ti-settings"></i>Settings</a>
-</div>
-
-<script>
-const API_URL = window.location.origin;
-let TOKEN = localStorage.getItem('vpt_token') || '';
-let USER = null;
-
-let FLEET = [];
-let RECENT_LOGS = [];
-let WORK_ORDERS = [];
-let CERTS = [];
-
-let currentVessel = null;
-let currentChecklist = [];
-let accumulatedWatchesPayload = [];
-
-const DEFAULT_CHECKS = [
-  { key: 'checks-gen_1', label: 'Engine Fluids & Oil Levels' },
-  { key: 'checks-gen_2', label: 'Sea Chest Strainers Clear' },
-  { key: 'checks-gen_3', label: 'Bilge Levels Dry & Pumps Auto' },
-  { key: 'checks-gen_4', label: 'Steering Gear Pressure' },
-  { key: 'checks-gen_5', label: 'Battery Banks & Alternators' }
-];
-
-async function api(path, method='GET', body=null) {
-  const headers = { 'Content-Type': 'application/json' };
-  if(TOKEN) headers['Authorization'] = `Bearer ${TOKEN}`;
-  const options = { method, headers };
-  if(body) options.body = JSON.stringify(body);
-  const res = await fetch(`${API_URL}/api${path}`, options);
-  const data = await res.json();
-  if(!res.ok) throw new Error(data.error || 'API Error');
-  return data;
-}
-
-function showPage(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById(`s-${id}`).classList.add('active');
-  
-  if(id === 'login') {
-    document.getElementById('topbar').style.display = 'none';
-    document.getElementById('navbar').style.display = 'none';
-  } else {
-    document.getElementById('topbar').style.display = 'flex';
-    document.getElementById('navbar').style.display = 'grid';
-  }
-  
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const activeNav = document.getElementById(`nav-${id}`);
-  if(activeNav) activeNav.classList.add('active');
-}
-
-function switchDashTab(tabId) {
-  document.querySelectorAll('#dash-tabs .tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('#s-dash .tab-pane').forEach(p => p.classList.remove('active'));
-  event.target.classList.add('active');
-  document.getElementById(`tab-${tabId}`).classList.add('active');
-}
-
-async function login() {
-  const email = document.getElementById('login-email').value;
-  const pass = document.getElementById('login-pass').value;
-  const btn = document.getElementById('btn-login');
-  try {
-    btn.disabled = true; btn.innerText = 'Signing in...';
-    const data = await api('/auth/login', 'POST', { email, password: pass });
-    TOKEN = data.token; USER = data.user;
-    localStorage.setItem('vpt_token', TOKEN);
-    initApp();
-  } catch(e) { alert(e.message); }
-  finally { btn.disabled = false; btn.innerText = 'Sign In'; }
-}
-
-function logout() {
-  TOKEN = ''; USER = null;
-  localStorage.removeItem('vpt_token');
-  showPage('login');
-}
-
-async function initApp() {
-  if(!TOKEN) return showPage('login');
-  try {
-    if(!USER) {
-      const data = await api('/auth/me');
-      USER = data.user;
-    }
-    
-    document.getElementById('user-chip').innerText = `${USER.full_name} (${USER.role})`;
-    document.getElementById('set-name').innerText = USER.full_name;
-    
-    const isManager = ['admin','company_admin','port_engineer','vessel_ops_manager','overlordadmin'].includes(USER.role);
-    document.querySelectorAll('.mgr-only').forEach(el => {
-      el.style.display = isManager ? (el.tagName === 'A' ? 'flex' : 'block') : 'none';
-    });
-
-    document.getElementById('dash-greeting').innerText = `Hello, ${USER.full_name.split(' ')[0]}`;
-    
-    loadDashboardData();
-    showPage('dash');
-  } catch(e) { logout(); }
-}
-
-async function loadDashboardData() {
-  try {
-    const data = await api('/vessels');
-    FLEET = data.vessels || data;
-    
-    // Render Fleet List
-    const fList = document.getElementById('fleet-list');
-    if(!FLEET.length) fList.innerHTML = '<div class="empty-state">No vessels assigned.</div>';
-    else {
-      fList.innerHTML = FLEET.map(v => `
-        <div class="list-item" onclick="openVessel('${v.id}')">
-          <div>
-            <div style="font-weight:600;color:var(--gold);margin-bottom:4px">${v.name}</div>
-            <div style="font-size:11px;color:var(--steel);text-transform:uppercase">${v.vessel_type||'Vessel'}</div>
-          </div>
-          <i class="ti ti-chevron-right" style="color:var(--steel)"></i>
-        </div>
-      `).join('');
-    }
-
-    // Load extra data if manager
-    const isManager = ['admin','company_admin','port_engineer','vessel_ops_manager','overlordadmin'].includes(USER.role);
-    if(isManager) {
-      document.getElementById('met-vessels').innerText = FLEET.length;
-      const logs = await api('/logs');
-      RECENT_LOGS = logs.logs || [];
-      
-      const today = new Date().toISOString().split('T')[0];
-      const todayLogs = RECENT_LOGS.filter(l => l.log_date === today);
-      document.getElementById('met-logs').innerText = todayLogs.length;
-      
-      const totalFlags = RECENT_LOGS.reduce((sum, l) => sum + (l.flag_count||0), 0);
-      document.getElementById('met-flags').innerText = totalFlags;
-      
-      const raList = document.getElementById('recent-activity-list');
-      if(!RECENT_LOGS.length) raList.innerHTML = '<div class="empty-state">No recent logs.</div>';
-      else {
-        raList.innerHTML = RECENT_LOGS.slice(0,5).map(l => `
-          <div class="log-row" onclick="openVessel('${l.vessel_id}')" style="cursor:pointer">
-            <div style="display:flex;justify-content:space-between">
-              <strong>${l.vessel?.name || 'Vessel'} - #${l.log_number}</strong>
-              <span class="stat-pill ${l.completion_pct===100?'pill-ok':'pill-warn'}">${l.completion_pct}%</span>
-            </div>
-            <div style="font-size:11px;color:var(--steel);margin-top:4px">
-              ${new Date(l.log_date).toLocaleDateString()} | ${l.engineer_name} | Flags: ${l.flag_count}
-            </div>
-          </div>
-        `).join('');
-      }
-    }
-  } catch(e) { console.error('Dashboard load error', e); }
-}
-
-async function openVessel(id) {
-  currentVessel = FLEET.find(v => v.id === id);
-  if(!currentVessel) return;
-  
-  document.getElementById('vd-name').innerText = currentVessel.name;
-  showPage('vessel');
-  
-  const vLogs = document.getElementById('vd-logs');
-  vLogs.innerHTML = '<div style="color:var(--steel)">Loading logs...</div>';
-  
-  try {
-    const data = await api(`/logs?vessel_id=${id}`);
-    const logs = data.logs || [];
-    if(!logs.length) vLogs.innerHTML = '<div class="empty-state">No logs yet.</div>';
-    else {
-      vLogs.innerHTML = logs.map(l => `
-        <div class="log-row">
-          <div style="display:flex;justify-content:space-between">
-            <strong>#${l.log_number}</strong>
-            <span class="stat-pill ${l.completion_pct===100?'pill-ok':'pill-warn'}">${l.completion_pct}%</span>
-          </div>
-          <div style="font-size:11px;color:var(--steel);margin-top:4px">
-            ${new Date(l.log_date).toLocaleDateString()} | ${l.engineer_name} | Flags: ${l.flag_count}
-          </div>
-        </div>
-      `).join('');
-    }
-  } catch(e) { vLogs.innerHTML = `<div class="empty-state text-danger">${e.message}</div>`; }
-}
-
-function openLogForm() {
-  accumulatedWatchesPayload = [];
-  document.getElementById('watches-badge-tray').innerHTML = '<span style="color:var(--steel);font-size:12px;">No shift rotations attached.</span>';
-  
-  document.getElementById('log-number').value = `VPT-${Math.floor(100000+Math.random()*900000)}`;
-  document.getElementById('log-date').value = new Date().toISOString().split('T')[0];
-  document.getElementById('log-engineer').value = USER.full_name;
-  
-  document.getElementById('watch-period-input').value = '';
-  document.getElementById('watch-eng-input').value = '';
-  document.getElementById('watch-start-hours').value = '';
-  document.getElementById('watch-end-hours').value = '';
-  
-  document.getElementById('log-hours').value = '';
-  document.getElementById('log-fuel').value = '';
-  document.getElementById('log-crew').value = '';
-  document.getElementById('log-notes').value = '';
-  
-  currentChecklist = DEFAULT_CHECKS.map(c => ({ ...c, checked: true, flag: 'ok' }));
-  renderChecklist();
-  
-  showPage('logform');
-}
-
-function renderChecklist() {
-  const container = document.getElementById('checklist-container');
-  container.innerHTML = currentChecklist.map((item, i) => `
-    <div class="card" style="padding:0.75rem;margin-bottom:0.5rem">
-      <div style="font-size:13px;font-weight:600;margin-bottom:0.5rem">${item.label}</div>
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <label style="display:flex;align-items:center;gap:0.5rem;font-size:12px;cursor:pointer">
-          <input type="checkbox" style="width:16px;height:16px" ${item.checked?'checked':''} 
-                 onchange="currentChecklist[${i}].checked = this.checked; document.getElementById('actions-${i}').style.display = this.checked ? 'flex' : 'none';">
-          Include in log
-        </label>
-        <div class="check-actions" id="actions-${i}" style="display:${item.checked?'flex':'none'}">
-          <button class="action-btn ${item.flag==='ok'?'active-ok':''}" onclick="setFlag(${i},'ok')"><i class="ti ti-check"></i></button>
-          <button class="action-btn ${item.flag==='flag'?'active-flag':''}" onclick="setFlag(${i},'flag')"><i class="ti ti-alert-triangle"></i></button>
-        </div>
-      </div>
-    </div>
-  `).join('');
-}
-
-function setFlag(index, flag) {
-  currentChecklist[index].flag = flag;
-  renderChecklist(); // Re-render is safe here because buttons don't hold text focus
-}
-
-function addNewWatchToArray() {
-  const period = document.getElementById('watch-period-input').value.trim();
-  const eng = document.getElementById('watch-eng-input').value.trim();
-  const start = document.getElementById('watch-start-hours').value;
-  const end = document.getElementById('watch-end-hours').value;
-  
-  if (!period || !eng) return alert('Watch Period and Engineer Name are required');
-  
-  accumulatedWatchesPayload.push({
-    watch_period: period,
-    engineer_name: eng,
-    engine_hours_start: start ? parseFloat(start) : null,
-    engine_hours_end: end ? parseFloat(end) : null
-  });
-  
-  const tray = document.getElementById('watches-badge-tray');
-  if(accumulatedWatchesPayload.length === 1) tray.innerHTML = '';
-  tray.innerHTML += `<span class="stat-pill pill-ok" style="padding:6px;margin-right:4px;margin-bottom:4px;display:inline-block;">${period}: ${eng}</span>`;
-  
-  document.getElementById('watch-period-input').value = '';
-  document.getElementById('watch-eng-input').value = '';
-  document.getElementById('watch-start-hours').value = '';
-  document.getElementById('watch-end-hours').value = '';
-}
-
-async function submitLog() {
-  const btn = document.getElementById('btn-submit-log');
-  btn.disabled = true; btn.innerText = 'Submitting...';
-  
-  try {
-    const payload = {
-      vessel_id: currentVessel.id,
-      log_number: document.getElementById('log-number').value,
-      log_date: document.getElementById('log-date').value,
-      engineer_name: document.getElementById('log-engineer').value,
-      engine_hours: parseFloat(document.getElementById('log-hours').value) || null,
-      fuel_level: document.getElementById('log-fuel').value,
-      crew_names: document.getElementById('log-crew').value.split(',').map(s=>s.trim()).filter(Boolean),
-      notes: document.getElementById('log-notes').value,
-      check_items: currentChecklist,
-      watches: accumulatedWatchesPayload // Connected to new multi-watch backend!
-    };
-    
-    await api('/logs', 'POST', payload);
-    alert('Log submitted successfully!');
-    openVessel(currentVessel.id);
-  } catch(e) { alert(e.message); }
-  finally { btn.disabled = false; btn.innerHTML = '<i class="ti ti-cloud-upload"></i> Submit Log to Office'; }
-}
-
-window.addEventListener('DOMContentLoaded', () => { initApp(); });
-</script>
-</body>
-</html>
+    <h4>Regulatory Certificate Framework</h4>
+    <div id="cert-list" class="empty-state" style="margin-top:
