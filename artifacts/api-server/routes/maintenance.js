@@ -206,16 +206,25 @@ router.get('/log', requireRole(MANAGE_ROLES), async (req, res) => {
 router.put('/log/:id', requireRole(MANAGE_ROLES), async (req, res) => {
   const { status, assigned_to, parts_needed, notes, work_performed } = req.body;
   const allowed = ['open', 'in_progress', 'awaiting_parts', 'complete'];
+  
   if (status && !allowed.includes(status)) {
     return res.status(400).json({ error: 'Invalid status' });
   }
+
   try {
-    const { data: existing } = await supabase
+    // 1. Fetch the existing record first to securely capture the old status
+    const { data: existing, error: fetchError } = await supabase
       .from('maintenance_log')
-      .select('status')
+      .select('status, company_id')
       .eq('id', req.params.id)
+      .eq('company_id', req.user.company_id)
       .single();
- 
+
+    if (fetchError || !existing) {
+      return res.status(404).json({ error: 'Work order not found or unauthorized access' });
+    }
+
+    // 2. Map out exactly what inputs the front-end is trying to update
     const updates = {};
     if (status) updates.status = status;
     if (assigned_to !== undefined) updates.assigned_to = assigned_to;
@@ -223,7 +232,8 @@ router.put('/log/:id', requireRole(MANAGE_ROLES), async (req, res) => {
     if (notes !== undefined) updates.notes = notes;
     if (work_performed !== undefined) updates.work_performed = work_performed;
     if (status === 'complete') updates.completed_at = new Date().toISOString();
- 
+
+    // 3. Update the primary maintenance task record
     const { data, error } = await supabase
       .from('maintenance_log')
       .update(updates)
@@ -231,25 +241,33 @@ router.put('/log/:id', requireRole(MANAGE_ROLES), async (req, res) => {
       .eq('company_id', req.user.company_id)
       .select()
       .single();
- 
+
     if (error) throw error;
- 
-    if (status && existing && existing.status !== status) {
-      const histRes = await supabase.from('work_order_history').insert({
-        company_id: req.user.company_id,
-        maintenance_log_id: req.params.id,
-        changed_by_name: req.user.full_name,
-        old_status: existing.status,
-        new_status: status,
-        note: work_performed || null
-      });
-      console.log('History insert:', histRes.error ? histRes.error.message : 'OK');
+
+    // 4. Force a strict record into the audit log if the status officially shifted
+    if (status && existing.status !== status) {
+      const { error: historyError } = await supabase
+        .from('work_order_history')
+        .insert({
+          company_id: req.user.company_id,
+          maintenance_log_id: req.params.id,
+          changed_by_name: req.user.full_name || 'System Operator',
+          old_status: existing.status,
+          new_status: status,
+          note: work_performed || notes || 'Status updated via dashboard'
+        });
+
+      if (historyError) {
+        console.error('History tracking background error:', historyError.message);
+        // We throw this error to guarantee the data layer remains accurate
+        throw new Error(`Audit logging failed: ${historyError.message}`);
+      }
     }
- 
-    res.json({ message: 'Work order updated', entry: data });
+
+    res.json({ message: 'Work order updated successfully', entry: data });
   } catch (err) {
-    console.error('Update error:', err.message);
-    res.status(500).json({ error: 'Failed to update work order' });
+    console.error('Update operation failure:', err.message);
+    res.status(500).json({ error: 'Failed to update work order', detail: err.message });
   }
 });
  
