@@ -2205,6 +2205,14 @@ function buildPDChecks(sectionId, items) {
 
 function pdToggleCheck(key, checked) {
   pdCheckState[key].checked = checked;
+  
+  // This makes the OK/Monitor/Action dropdown visible when checked!
+  const sel = document.getElementById('pd_flag_' + key);
+  if (sel) {
+    sel.style.opacity = checked ? '1' : '0';
+    sel.style.pointerEvents = checked ? 'auto' : 'none';
+  }
+  
   updatePDProgress();
 }
 
