@@ -1504,7 +1504,7 @@ function openMaintenanceOrder() {
   if (!currentVessel) { alert('Please select a vessel first.'); return; }
   document.getElementById('mo-vessel').value = currentVessel.name;
   document.getElementById('mo-system').value = '';
-  document.getElementById('mo-system-val').value = '';
+  document.getElementById('mo-system-buttons') && renderSystemButtons('');
   document.getElementById('mo-component').value = '';
   document.getElementById('mo-priority').value = 'medium';
   document.getElementById('mo-error-codes').value = '';
@@ -1517,7 +1517,7 @@ function openMaintenanceOrder() {
 
 async function submitMaintenanceOrder() {
   const vessel_id = document.getElementById('mo-vessel-id').value;
-  const system = document.getElementById('mo-system').value || document.getElementById('mo-system-val').value;
+  const system = document.getElementById('mo-system').value;
   const description = document.getElementById('mo-description').value.trim();
   const err = document.getElementById('mo-error');
   err.style.display = 'none';
@@ -2491,7 +2491,7 @@ function openMaintenanceOrder() {
     sel.appendChild(opt);
   });
   document.getElementById('mo-system').value = '';
-  document.getElementById('mo-system-val').value = '';
+  document.getElementById('mo-system-buttons') && renderSystemButtons('');
   document.getElementById('mo-component').value = '';
   document.getElementById('mo-priority').value = 'medium';
   document.getElementById('mo-description').value = '';
@@ -2499,11 +2499,32 @@ function openMaintenanceOrder() {
   document.getElementById('mo-error').style.display = 'none';
   document.getElementById('mo-submit-btn').disabled = false;
   document.getElementById('mo-submit-btn').textContent = 'Submit issue';
+  renderSystemButtons('');
   document.getElementById('modal-maintenance-order').classList.add('open');
 }
 
 function closeMaintenanceOrderModal() {
   document.getElementById('modal-maintenance-order').classList.remove('open');
+}
+
+
+const MO_SYSTEMS = ['Main Engine','Generator','Steering','Electrical','Fuel System','Cooling System','Bilge System','Navigation Equipment','Safety Equipment','Hull / Deck','Drive Shaft','Other'];
+
+function renderSystemButtons(selected) {
+  const container = document.getElementById('mo-system-buttons');
+  if (!container) return;
+  container.innerHTML = '';
+  MO_SYSTEMS.forEach(sys => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = sys;
+    btn.style.cssText = 'padding:6px 10px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:' + (selected === sys ? 'var(--gold)' : 'var(--surface2)') + ';color:' + (selected === sys ? 'var(--black)' : 'var(--cream)') + ';font-weight:' + (selected === sys ? '700' : '400');
+    btn.onclick = function() {
+      document.getElementById('mo-system').value = sys;
+      renderSystemButtons(sys);
+    };
+    container.appendChild(btn);
+  });
 }
 
 </script>
@@ -2609,22 +2630,8 @@ function closeMaintenanceOrderModal() {
     </div>
     <div class="form-group">
       <label>System <span class="required-star">*</span></label>
-      <select id="mo-system" onchange="document.getElementById('mo-system-val').value=this.value">
-        <option value="">Select system...</option>
-        <option value="Main Engine">Main Engine</option>
-        <option value="Generator">Generator</option>
-        <option value="Steering">Steering</option>
-        <option value="Electrical">Electrical</option>
-        <option value="Fuel System">Fuel System</option>
-        <option value="Cooling System">Cooling System</option>
-        <option value="Bilge System">Bilge System</option>
-        <option value="Navigation Equipment">Navigation Equipment</option>
-        <option value="Safety Equipment">Safety Equipment</option>
-        <option value="Hull / Deck">Hull / Deck</option>
-        <option value="HVAC">HVAC</option>
-        <option value="Other">Other</option>
-      </select>
-      <input type="hidden" id="mo-system-val" value="">
+      <div id="mo-system-buttons" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
+      <input type="hidden" id="mo-system" value="">
     </div>
     <div class="form-group">
       <label>Component <span style="color:var(--steel);font-weight:400">(optional)</span></label>
