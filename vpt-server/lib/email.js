@@ -1,31 +1,27 @@
-const { sendEmail: _send } = (() => {
-  const FROM_EMAIL = 'Vantage Point Tracking <onboarding@resend.dev>';
+const FROM_EMAIL = 'Vantage Point Tracking <onboarding@resend.dev>';
 
-  async function sendEmail({ to, subject, html }) {
-    const key = process.env.RESEND_API_KEY;
-    if (!key) {
-      console.warn('RESEND_API_KEY not set — skipping email');
-      return;
-    }
-    try {
-      const res = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${key}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ from: FROM_EMAIL, to, subject, html })
-      });
-      const data = await res.json();
-      if (!res.ok) console.error('Resend error:', JSON.stringify(data));
-      else console.log('Email sent:', data.id);
-    } catch (err) {
-      console.error('Email send failed:', err.message);
-    }
+async function sendEmail({ to, subject, html }) {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) {
+    console.warn('RESEND_API_KEY not set — skipping email');
+    return;
   }
-
-  return { sendEmail };
-})();
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${key}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ from: FROM_EMAIL, to, subject, html })
+    });
+    const data = await res.json();
+    if (!res.ok) console.error('Resend error:', JSON.stringify(data));
+    else console.log('Email sent:', data.id);
+  } catch (err) {
+    console.error('Email send failed:', err.message);
+  }
+}
 
 async function sendMaintenanceAlert({ managers, submitterName, vesselName, system, component, description, priority, orderId }) {
   const priorityColor = priority === 'high' ? '#C0392B' : priority === 'medium' ? '#E67E22' : '#27AE60';
@@ -58,11 +54,11 @@ async function sendMaintenanceAlert({ managers, submitterName, vesselName, syste
   `;
 
   for (const manager of managers) {
-    const to = manager.email === 'tannerwrightys@gmail.com' 
+    const toAddresses = manager.email === 'tannerwrightys@gmail.com'
       ? ['tannerwrightys@gmail.com']
-      : [manager.email, 'tannerwrightys@gmail.com'].filter((v,i,a) => a.indexOf(v) === i);
-    await _send({ to, subject: `[VPT] Maintenance order — ${vesselName}: ${system}`, html });
+      : [manager.email, 'tannerwrightys@gmail.com'].filter((v, i, a) => a.indexOf(v) === i);
+    await sendEmail({ to: toAddresses, subject: `[VPT] Maintenance order — ${vesselName}: ${system}`, html });
   }
 }
 
-module.exports = { sendEmail: _send, sendMaintenanceAlert };
+module.exports = { sendEmail, sendMaintenanceAlert };
