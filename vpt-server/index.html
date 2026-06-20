@@ -835,20 +835,10 @@ function doLogout() {
   show('screen-login');
 }
 
-function switchToCrewMode() {
+  function switchToCrewMode() {
   const hr = new Date().getHours();
   document.getElementById('greeting').textContent = (hr<12?'Good morning':hr<17?'Good afternoon':'Good evening') + ', ' + (currentUser.full_name||'crew');
-  if (allVessels.length) {
-    const grid = document.getElementById('vessel-grid');
-    grid.innerHTML = '';
-    allVessels.forEach(v => {
-      const card = document.createElement('div');
-      card.className = 'vessel-card';
-      card.innerHTML = '<i class="ti ti-ship"></i><div class="vname">' + v.name + '</div>';
-      card.onclick = () => openChecklist(v);
-      grid.appendChild(card);
-    });
-  } else { loadVessels(); }
+  loadVessels();
   show('screen-vessels');
 }
 
