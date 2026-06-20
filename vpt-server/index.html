@@ -1,3 +1,5 @@
+Index · HTML
+Syntax highlighting has been disabled due to code size.
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1504,6 +1506,7 @@ function openMaintenanceOrder() {
   if (!currentVessel) { alert('Please select a vessel first.'); return; }
   document.getElementById('mo-vessel').value = currentVessel.name;
   document.getElementById('mo-system').value = '';
+  document.getElementById('mo-system-val').value = '';
   document.getElementById('mo-component').value = '';
   document.getElementById('mo-priority').value = 'medium';
   document.getElementById('mo-error-codes').value = '';
@@ -1516,7 +1519,7 @@ function openMaintenanceOrder() {
 
 async function submitMaintenanceOrder() {
   const vessel_id = document.getElementById('mo-vessel-id').value;
-  const system = document.getElementById('mo-system').value;
+  const system = document.getElementById('mo-system').value || document.getElementById('mo-system-val').value;
   const description = document.getElementById('mo-description').value.trim();
   const err = document.getElementById('mo-error');
   err.style.display = 'none';
@@ -1541,8 +1544,9 @@ async function submitMaintenanceOrder() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Submission failed');
-    alert('Maintenance order submitted. The port engineer and vessel ops manager have been notified.');
-    show('screen-checklist');
+    closeMaintenanceOrderModal();
+    alert('Issue reported — port engineer and vessel ops manager have been notified.');
+    loadNotifications();
   } catch(e) {
     err.textContent = e.message || 'Failed to submit. Please try again.';
     err.style.display = 'block';
@@ -2489,6 +2493,7 @@ function openMaintenanceOrder() {
     sel.appendChild(opt);
   });
   document.getElementById('mo-system').value = '';
+  document.getElementById('mo-system-val').value = '';
   document.getElementById('mo-component').value = '';
   document.getElementById('mo-priority').value = 'medium';
   document.getElementById('mo-description').value = '';
@@ -2595,8 +2600,8 @@ function closeMaintenanceOrderModal() {
   </div>
 </div>
 
-<div class="modal-overlay" id="modal-maintenance-order">
-  <div class="modal" style="max-width:480px">
+<div class="modal-overlay" id="modal-maintenance-order" onclick="closeMaintenanceOrderModal()">
+  <div class="modal" style="max-width:480px" onclick="event.stopPropagation()">
     <div class="modal-title"><i class="ti ti-alert-triangle"></i> Report an issue</div>
     <div class="form-group">
       <label>Vessel <span class="required-star">*</span></label>
@@ -2606,7 +2611,7 @@ function closeMaintenanceOrderModal() {
     </div>
     <div class="form-group">
       <label>System <span class="required-star">*</span></label>
-      <select id="mo-system">
+      <select id="mo-system" onchange="document.getElementById('mo-system-val').value=this.value">
         <option value="">Select system...</option>
         <option value="Main Engine">Main Engine</option>
         <option value="Generator">Generator</option>
@@ -2621,6 +2626,7 @@ function closeMaintenanceOrderModal() {
         <option value="HVAC">HVAC</option>
         <option value="Other">Other</option>
       </select>
+      <input type="hidden" id="mo-system-val" value="">
     </div>
     <div class="form-group">
       <label>Component <span style="color:var(--steel);font-weight:400">(optional)</span></label>
