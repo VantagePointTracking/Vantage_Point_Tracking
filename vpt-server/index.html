@@ -266,7 +266,7 @@ select option{background:var(--surface2);color:var(--cream)}
 <!-- Pre-departure screen -->
 <div id="screen-predeparture" class="screen">
   <div class="topbar">
-    <button class="back-btn" onclick="closeTripAction()"><i class="ti ti-arrow-left"></i></button>
+    <button class="back-btn" onclick="loadVessels();show('screen-vessels')"><i class="ti ti-arrow-left"></i></button>
     <div>
       <div class="topbar-title" id="pd-vessel-name"></div>
       <div style="font-size:12px;color:var(--gold)">Pre-departure checklist</div>
@@ -835,7 +835,7 @@ function doLogout() {
   show('screen-login');
 }
 
-  function switchToCrewMode() {
+function switchToCrewMode() {
   const hr = new Date().getHours();
   document.getElementById('greeting').textContent = (hr<12?'Good morning':hr<17?'Good afternoon':'Good evening') + ', ' + (currentUser.full_name||'crew');
   loadVessels();
@@ -922,13 +922,13 @@ async function loadCrewHistory() {
   }
 }
 
-function buildPDChecks(sectionId, items) {
+function buildChecks(sectionId, items) {
   const el = document.getElementById(sectionId);
   if (!el) return;
   el.innerHTML = '';
   items.forEach((item, i) => {
     const key = sectionId + '_' + i;
-    pdCheckState[key] = {checked: false, flag: 'ok'};
+    checkState[key] = {checked: false, flag: 'ok'};
     const row = document.createElement('div');
     row.className = 'check-item';
     row.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)';
@@ -936,33 +936,32 @@ function buildPDChecks(sectionId, items) {
     left.style.cssText = 'display:flex;align-items:flex-start;gap:10px;flex:1';
     const cb = document.createElement('input');
     cb.type = 'checkbox';
-    cb.id = 'pd_chk_' + key;
+    cb.id = 'chk_' + key;
     cb.style.cssText = 'width:20px;height:20px;cursor:pointer;margin-top:2px;flex-shrink:0';
-    cb.addEventListener('change', function() { pdToggleCheck(key, this.checked); });
+    cb.addEventListener('change', function() { toggleCheck(key, this.checked); });
     const lbl = document.createElement('label');
-    lbl.htmlFor = 'pd_chk_' + key;
+    lbl.htmlFor = 'chk_' + key;
     lbl.textContent = item;
     lbl.style.cssText = 'cursor:pointer;margin:0;font-size:14px;color:var(--cream);line-height:1.4';
     const sel = document.createElement('select');
     sel.className = 'flag-select';
-    sel.id = 'pd_flag_' + key;
+    sel.id = 'flag_' + key;
     sel.style.cssText = 'display:none;width:130px;padding:6px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:6px';
     sel.innerHTML = '<option value="ok">OK</option><option value="monitor">Monitor</option><option value="action">Action needed</option>';
-    sel.addEventListener('change', function() { pdSetFlag(key, this.value); });
+    sel.addEventListener('change', function() { setFlag(key, this.value); });
     left.appendChild(cb);
     left.appendChild(lbl);
     row.appendChild(left);
     row.appendChild(sel);
     el.appendChild(row);
   });
-  updatePDProgress();
 }
 
-function pdToggleCheck(key, checked) {
-  if (pdCheckState[key]) pdCheckState[key].checked = checked;
-  const sel = document.getElementById('pd_flag_' + key);
+function toggleCheck(key, checked) {
+  if (checkState[key]) checkState[key].checked = checked;
+  const sel = document.getElementById('flag_' + key);
   if (sel) sel.style.display = checked ? 'block' : 'none';
-  updatePDProgress();
+  updateProgress();
 }
 
 function setFlag(key, val) { checkState[key].flag = val; }
@@ -2188,6 +2187,10 @@ function openTripAction(vessel, trip) {
   document.getElementById('modal-trip-action').classList.add('open');
 }
 
+function closeTripAction() {
+  document.getElementById('modal-trip-action').classList.remove('open');
+}
+
 // ═══════════════════════════════════════════════════════════════
 // PRE-DEPARTURE
 // ═══════════════════════════════════════════════════════════════
@@ -2201,21 +2204,27 @@ function buildPDChecks(sectionId, items) {
     pdCheckState[key] = {checked: false, flag: 'ok'};
     const row = document.createElement('div');
     row.className = 'check-item';
+    row.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)';
+    const left = document.createElement('div');
+    left.style.cssText = 'display:flex;align-items:flex-start;gap:10px;flex:1';
     const cb = document.createElement('input');
     cb.type = 'checkbox';
     cb.id = 'pd_chk_' + key;
+    cb.style.cssText = 'width:20px;height:20px;cursor:pointer;margin-top:2px;flex-shrink:0';
     cb.addEventListener('change', function() { pdToggleCheck(key, this.checked); });
     const lbl = document.createElement('label');
     lbl.htmlFor = 'pd_chk_' + key;
     lbl.textContent = item;
+    lbl.style.cssText = 'cursor:pointer;margin:0;font-size:14px;color:var(--cream);line-height:1.4';
     const sel = document.createElement('select');
     sel.className = 'flag-select';
     sel.id = 'pd_flag_' + key;
-    sel.style.cssText = 'opacity:0;pointer-events:none;transition:opacity 0.15s';
+    sel.style.cssText = 'display:none;width:130px;padding:6px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:6px';
     sel.innerHTML = '<option value="ok">OK</option><option value="monitor">Monitor</option><option value="action">Action needed</option>';
     sel.addEventListener('change', function() { pdSetFlag(key, this.value); });
-    row.appendChild(cb);
-    row.appendChild(lbl);
+    left.appendChild(cb);
+    left.appendChild(lbl);
+    row.appendChild(left);
     row.appendChild(sel);
     el.appendChild(row);
   });
@@ -2224,7 +2233,9 @@ function buildPDChecks(sectionId, items) {
 
 
 function pdToggleCheck(key, checked) {
-  pdCheckState[key].checked = checked;
+  if (pdCheckState[key]) pdCheckState[key].checked = checked;
+  const sel = document.getElementById('pd_flag_' + key);
+  if (sel) sel.style.display = checked ? 'block' : 'none';
   updatePDProgress();
 }
 
@@ -2483,6 +2494,10 @@ function openMaintenanceOrder() {
   document.getElementById('mo-submit-btn').disabled = false;
   document.getElementById('mo-submit-btn').textContent = 'Submit issue';
   document.getElementById('modal-maintenance-order').classList.add('open');
+}
+
+function closeMaintenanceOrderModal() {
+  document.getElementById('modal-maintenance-order').classList.remove('open');
 }
 
 </script>
