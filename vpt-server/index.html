@@ -922,29 +922,47 @@ async function loadCrewHistory() {
   }
 }
 
-function buildChecks(sectionId, items) {
+function buildPDChecks(sectionId, items) {
   const el = document.getElementById(sectionId);
+  if (!el) return;
   el.innerHTML = '';
   items.forEach((item, i) => {
     const key = sectionId + '_' + i;
-    checkState[key] = {checked: false, flag: 'ok'};
+    pdCheckState[key] = {checked: false, flag: 'ok'};
     const row = document.createElement('div');
     row.className = 'check-item';
-    row.innerHTML = '<input type="checkbox" id="chk_' + key + '" onchange="toggleCheck(\'' + key + '\',this.checked)">' +
-      '<label for="chk_' + key + '">' + item + '</label>' +
-      '<select class="flag-select" id="flag_' + key + '" onchange="setFlag(\'' + key + '\',this.value)" style="opacity:0;pointer-events:none;transition:opacity 0.15s">' +
-      '<option value="ok">OK</option><option value="monitor">Monitor</option><option value="action">Action needed</option>' +
-      '</select>';
+    row.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)';
+    const left = document.createElement('div');
+    left.style.cssText = 'display:flex;align-items:flex-start;gap:10px;flex:1';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.id = 'pd_chk_' + key;
+    cb.style.cssText = 'width:20px;height:20px;cursor:pointer;margin-top:2px;flex-shrink:0';
+    cb.addEventListener('change', function() { pdToggleCheck(key, this.checked); });
+    const lbl = document.createElement('label');
+    lbl.htmlFor = 'pd_chk_' + key;
+    lbl.textContent = item;
+    lbl.style.cssText = 'cursor:pointer;margin:0;font-size:14px;color:var(--cream);line-height:1.4';
+    const sel = document.createElement('select');
+    sel.className = 'flag-select';
+    sel.id = 'pd_flag_' + key;
+    sel.style.cssText = 'display:none;width:130px;padding:6px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:6px';
+    sel.innerHTML = '<option value="ok">OK</option><option value="monitor">Monitor</option><option value="action">Action needed</option>';
+    sel.addEventListener('change', function() { pdSetFlag(key, this.value); });
+    left.appendChild(cb);
+    left.appendChild(lbl);
+    row.appendChild(left);
+    row.appendChild(sel);
     el.appendChild(row);
   });
+  updatePDProgress();
 }
 
-function toggleCheck(key, checked) {
-  checkState[key].checked = checked;
-  const flag = document.getElementById('flag_' + key);
-  flag.style.opacity = checked ? '1' : '0';
-  flag.style.pointerEvents = checked ? 'auto' : 'none';
-  updateProgress();
+function pdToggleCheck(key, checked) {
+  if (pdCheckState[key]) pdCheckState[key].checked = checked;
+  const sel = document.getElementById('pd_flag_' + key);
+  if (sel) sel.style.display = checked ? 'block' : 'none';
+  updatePDProgress();
 }
 
 function setFlag(key, val) { checkState[key].flag = val; }
@@ -2147,27 +2165,27 @@ function openTripAction(vessel, trip) {
   currentTrip = trip;
   document.getElementById('trip-action-vessel-name').textContent = vessel.name;
   const body = document.getElementById('trip-action-body');
+  const reportBtn = '<button class="btn" onclick="closeTripAction();openMaintenanceOrder()" style="margin-top:8px;border-color:var(--amber);color:var(--amber)"><i class="ti ti-alert-triangle"></i> Report an issue</button>';
   if (!trip) {
     body.innerHTML =
       '<div style="font-size:13px;color:var(--steel);margin-bottom:1rem">No active trip for this vessel.</div>' +
       '<button class="btn btn-primary" onclick="startPredeparture()"><i class="ti ti-anchor"></i> Start pre-departure checklist</button>' +
+      reportBtn +
       '<button class="btn" onclick="closeTripAction()" style="margin-top:8px">Cancel</button>';
   } else if (trip.status === 'predeparture') {
     body.innerHTML =
       '<div style="font-size:13px;color:var(--amber);margin-bottom:1rem"><i class="ti ti-clock"></i> Pre-departure in progress</div>' +
       '<button class="btn btn-primary" onclick="continuePredeparture()">Continue pre-departure</button>' +
+      reportBtn +
       '<button class="btn" onclick="closeTripAction()" style="margin-top:8px">Cancel</button>';
   } else if (trip.status === 'active') {
     body.innerHTML =
       '<div style="font-size:13px;color:var(--green);margin-bottom:1rem"><i class="ti ti-circle-check"></i> Trip active' + (trip.trip_number ? ' — Trip #' + trip.trip_number : '') + '</div>' +
-      '<button class="btn btn-primary" onclick="openUnderwayLog()"><i class="ti ti-gauge"></i> Add watch / readings</button>' +
+      '<button class="btn btn-primary" onclick="closeTripAction();openUnderwayLog()"><i class="ti ti-gauge"></i> Add watch / readings</button>' +
+      reportBtn +
       '<button class="btn" onclick="closeTripAction()" style="margin-top:8px">Cancel</button>';
   }
   document.getElementById('modal-trip-action').classList.add('open');
-}
-
-function closeTripAction() {
-  document.getElementById('modal-trip-action').classList.remove('open');
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2453,7 +2471,7 @@ function openMaintenanceOrder() {
     const opt = document.createElement('option');
     opt.value = v.id;
     opt.textContent = v.name;
-    if (currentVessel && v.id === currentVessel.id) opt.selected = true;
+    if (currentTripVessel && v.id === currentTripVessel.id) opt.selected = true;
     sel.appendChild(opt);
   });
   document.getElementById('mo-system').value = '';
@@ -2465,10 +2483,6 @@ function openMaintenanceOrder() {
   document.getElementById('mo-submit-btn').disabled = false;
   document.getElementById('mo-submit-btn').textContent = 'Submit issue';
   document.getElementById('modal-maintenance-order').classList.add('open');
-}
-
-function closeMaintenanceOrderModal() {
-  document.getElementById('modal-maintenance-order').classList.remove('open');
 }
 
 </script>
