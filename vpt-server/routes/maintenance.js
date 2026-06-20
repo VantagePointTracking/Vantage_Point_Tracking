@@ -184,4 +184,111 @@ router.put('/orders/:id/approve', requireRole(MANAGE_ROLES), async (req, res) =>
   }
 });
 
-// ── GET /api/maintenance/log
+// ── GET /api/maintenance/log ─────────────────────────────────
+router.get('/log', requireRole(MANAGE_ROLES), async (req, res) => {
+  try {
+    const { vessel_id, status } = req.query;
+    let query = supabase
+      .from('maintenance_log')
+      .select('*, vessel:vessels(id,name)')
+      .eq('company_id', req.user.company_id)
+      .order('created_at', { ascending: false });
+
+    if (vessel_id) query = query.eq('vessel_id', vessel_id);
+    if (status) query = query.eq('status', status);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json({ entries: data });
+  } catch (err) {
+    console.error('GET log error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch maintenance log' });
+  }
+});
+
+// ── PUT /api/maintenance/log/:id ─────────────────────────────
+router.put('/log/:id', requireRole(MANAGE_ROLES), async (req, res) => {
+  const { status, assigned_to, parts_needed, notes, work_performed } = req.body;
+  const allowed = ['open', 'in_progress', 'awaiting_parts', 'complete'];
+  if (status && !allowed.includes(status)) {
+    return res.status(400).json({ error: 'Invalid status' });
+  }
+  try {
+    const { data: existing } = await supabase
+      .from('maintenance_log')
+      .select('status')
+      .eq('id', req.params.id)
+      .single();
+
+    const updates = {};
+    if (status) updates.status = status;
+    if (assigned_to !== undefined) updates.assigned_to = assigned_to;
+    if (parts_needed !== undefined) updates.parts_needed = parts_needed;
+    if (notes !== undefined) updates.notes = notes;
+    if (work_performed !== undefined) updates.work_performed = work_performed;
+    if (status === 'complete') updates.completed_at = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from('maintenance_log')
+      .update(updates)
+      .eq('id', req.params.id)
+      .eq('company_id', req.user.company_id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    if (status && existing && existing.status !== status) {
+      const histRes = await supabase.from('work_order_history').insert({
+        company_id: req.user.company_id,
+        maintenance_log_id: req.params.id,
+        changed_by_name: req.user.full_name,
+        old_status: existing.status,
+        new_status: status,
+        note: work_performed || null
+      });
+      console.log('History insert:', histRes.error ? histRes.error.message : 'OK');
+    }
+
+    res.json({ message: 'Work order updated', entry: data });
+  } catch (err) {
+    console.error('PUT log error:', err.message);
+    res.status(500).json({ error: 'Failed to update work order' });
+  }
+});
+
+// ── GET /api/maintenance/notifications ───────────────────────
+router.get('/notifications', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .eq('company_id', req.user.company_id)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+    const unread = (data || []).filter(n => !n.read).length;
+    res.json({ notifications: data || [], unread });
+  } catch (err) {
+    console.error('GET notifications error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
+// ── PUT /api/maintenance/notifications/read-all ──────────────
+router.put('/notifications/read-all', async (req, res) => {
+  try {
+    await supabase.from('notifications')
+      .update({ read: true })
+      .eq('user_id', req.user.id)
+      .eq('company_id', req.user.company_id);
+    res.json({ message: 'All notifications marked read' });
+  } catch (err) {
+    console.error('PUT read-all error:', err.message);
+    res.status(500).json({ error: 'Failed to mark notifications read' });
+  }
+});
+
+module.exports = router;
