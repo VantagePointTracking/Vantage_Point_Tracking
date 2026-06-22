@@ -379,6 +379,58 @@ select option{background:var(--surface2);color:var(--cream)}
   </div>
 </div>
 
+<!-- Report Issue Screen -->
+<div id="screen-report-issue" class="screen" style="display:none">
+  <div class="topbar">
+    <button class="back-btn" onclick="closeReportIssueScreen()"><i class="ti ti-arrow-left"></i></button>
+    <div>
+      <div class="topbar-title">Report an Issue</div>
+      <div class="topbar-sub" id="ri-vessel-name">Select vessel</div>
+    </div>
+  </div>
+  <div class="screen-body" style="padding:1.5rem;max-width:600px;margin:0 auto">
+
+    <div class="form-group">
+      <label>Vessel</label>
+      <select id="ri-vessel-id" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px">
+        <option value="">Select vessel...</option>
+      </select>
+    </div>
+
+    <div class="form-group" style="margin-top:1.25rem">
+      <label>System <span style="color:var(--red)">*</span></label>
+      <div id="ri-system-buttons" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"></div>
+      <input type="hidden" id="ri-system" value="">
+    </div>
+
+    <div class="form-group" style="margin-top:1.25rem">
+      <label>Priority</label>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button type="button" id="ri-priority-low" onclick="setRIPriority('low')" style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--cream);cursor:pointer;font-size:13px">Low</button>
+        <button type="button" id="ri-priority-medium" onclick="setRIPriority('medium')" style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--amber);background:rgba(245,158,11,0.15);color:var(--amber);cursor:pointer;font-size:13px;font-weight:600">Medium</button>
+        <button type="button" id="ri-priority-high" onclick="setRIPriority('high')" style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--cream);cursor:pointer;font-size:13px">High</button>
+      </div>
+      <input type="hidden" id="ri-priority" value="medium">
+    </div>
+
+    <div class="form-group" style="margin-top:1.25rem">
+      <label>Description <span style="color:var(--red)">*</span></label>
+      <textarea id="ri-description" rows="5" placeholder="Describe the issue in detail..." style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px;resize:vertical;box-sizing:border-box;margin-top:8px;font-family:inherit"></textarea>
+    </div>
+
+    <div class="form-group" style="margin-top:1.25rem">
+      <label>Error Codes <span style="color:var(--steel);font-weight:400">(optional)</span></label>
+      <input type="text" id="ri-error-codes" placeholder="e.g. E001, P0420" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px;box-sizing:border-box;margin-top:8px">
+    </div>
+
+    <div id="ri-error" style="display:none;color:var(--red);font-size:13px;margin-top:0.75rem;padding:10px;background:rgba(239,68,68,0.1);border-radius:6px;border:1px solid rgba(239,68,68,0.3)"></div>
+
+    <button type="button" id="ri-submit-btn" onclick="submitReportIssue()" style="width:100%;margin-top:1.5rem;padding:14px;background:var(--amber);color:#1a1a1a;font-weight:700;font-size:15px;border:none;border-radius:8px;cursor:pointer;letter-spacing:0.04em">
+      Submit Issue Report
+    </button>
+  </div>
+</div>
+
 <div id="screen-checklist" class="screen">
   <div class="topbar">
     <button class="back-btn" onclick="show('screen-vessels')" aria-label="Back"><i class="ti ti-arrow-left"></i></button>
@@ -2169,7 +2221,7 @@ function openTripAction(vessel, trip) {
   currentTrip = trip;
   document.getElementById('trip-action-vessel-name').textContent = vessel.name;
   const body = document.getElementById('trip-action-body');
-  const reportBtn = '<button class="btn" onclick="closeTripAction();openMaintenanceOrder()" style="margin-top:8px;border-color:var(--amber);color:var(--amber)"><i class="ti ti-alert-triangle"></i> Report an issue</button>';
+  const reportBtn = '<button class="btn" onclick="closeTripAction();openReportIssueScreen()" style="margin-top:8px;border-color:var(--amber);color:var(--amber)"><i class="ti ti-alert-triangle"></i> Report an issue</button>';
   if (!trip) {
     body.innerHTML =
       '<div style="font-size:13px;color:var(--steel);margin-bottom:1rem">No active trip for this vessel.</div>' +
@@ -2525,6 +2577,129 @@ function renderSystemButtons(selected) {
     };
     container.appendChild(btn);
   });
+}
+
+
+const RI_SYSTEMS = ['Main Engine','Generator','Steering','Electrical','Fuel System','Cooling System','Bilge System','Navigation Equipment','Safety Equipment','Hull / Deck','Drive Shaft','Other'];
+
+function openReportIssueScreen() {
+  // Populate vessel dropdown
+  const sel = document.getElementById('ri-vessel-id');
+  sel.innerHTML = '<option value="">Select vessel...</option>';
+  (allVessels || []).forEach(v => {
+    const opt = document.createElement('option');
+    opt.value = v.id;
+    opt.textContent = v.name;
+    if (currentTripVessel && v.id === currentTripVessel.id) opt.selected = true;
+    sel.appendChild(opt);
+  });
+
+  // Update topbar subtitle
+  const vesselName = currentTripVessel ? currentTripVessel.name : 'Select vessel';
+  document.getElementById('ri-vessel-name').textContent = vesselName;
+
+  // Reset form
+  document.getElementById('ri-system').value = '';
+  document.getElementById('ri-priority').value = 'medium';
+  document.getElementById('ri-description').value = '';
+  document.getElementById('ri-error-codes').value = '';
+  document.getElementById('ri-error').style.display = 'none';
+  document.getElementById('ri-submit-btn').disabled = false;
+  document.getElementById('ri-submit-btn').textContent = 'Submit Issue Report';
+
+  // Render system buttons
+  renderRISystemButtons('');
+
+  // Set medium as default priority
+  setRIPriority('medium');
+
+  show('screen-report-issue');
+}
+
+function closeReportIssueScreen() {
+  loadVessels();
+  show('screen-vessels');
+}
+
+function renderRISystemButtons(selected) {
+  const container = document.getElementById('ri-system-buttons');
+  if (!container) return;
+  container.innerHTML = '';
+  RI_SYSTEMS.forEach(sys => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = sys;
+    const isSelected = selected === sys;
+    btn.style.cssText = 'padding:7px 12px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid ' +
+      (isSelected ? 'var(--amber)' : 'var(--border)') + ';background:' +
+      (isSelected ? 'rgba(245,158,11,0.15)' : 'var(--surface2)') + ';color:' +
+      (isSelected ? 'var(--amber)' : 'var(--cream)') + ';font-weight:' +
+      (isSelected ? '700' : '400');
+    btn.onclick = function() {
+      document.getElementById('ri-system').value = sys;
+      renderRISystemButtons(sys);
+    };
+    container.appendChild(btn);
+  });
+}
+
+function setRIPriority(priority) {
+  document.getElementById('ri-priority').value = priority;
+  const btns = { low: 'ri-priority-low', medium: 'ri-priority-medium', high: 'ri-priority-high' };
+  const colors = { low: 'var(--green)', medium: 'var(--amber)', high: 'var(--red)' };
+  Object.keys(btns).forEach(p => {
+    const btn = document.getElementById(btns[p]);
+    if (p === priority) {
+      btn.style.borderColor = colors[p];
+      btn.style.background = 'rgba(0,0,0,0.2)';
+      btn.style.color = colors[p];
+      btn.style.fontWeight = '700';
+    } else {
+      btn.style.borderColor = 'var(--border)';
+      btn.style.background = 'var(--surface2)';
+      btn.style.color = 'var(--cream)';
+      btn.style.fontWeight = '400';
+    }
+  });
+}
+
+async function submitReportIssue() {
+  const vessel_id = document.getElementById('ri-vessel-id').value;
+  const system = document.getElementById('ri-system').value;
+  const description = document.getElementById('ri-description').value.trim();
+  const priority = document.getElementById('ri-priority').value || 'medium';
+  const error_codes = document.getElementById('ri-error-codes').value.trim();
+  const errEl = document.getElementById('ri-error');
+
+  // Validate
+  if (!vessel_id) { errEl.textContent = 'Please select a vessel.'; errEl.style.display = 'block'; return; }
+  if (!system) { errEl.textContent = 'Please select a system.'; errEl.style.display = 'block'; return; }
+  if (!description) { errEl.textContent = 'Please describe the issue.'; errEl.style.display = 'block'; return; }
+  errEl.style.display = 'none';
+
+  const btn = document.getElementById('ri-submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+
+  try {
+    const res = await fetch(API + '/api/maintenance/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ vessel_id, system, description, priority, error_codes: error_codes || null })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Submission failed');
+
+    // Success
+    loadNotifications();
+    alert('Issue reported successfully. The port engineer and vessel ops manager have been notified.');
+    closeReportIssueScreen();
+  } catch(e) {
+    errEl.textContent = 'Error: ' + e.message;
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Submit Issue Report';
+  }
 }
 
 </script>
