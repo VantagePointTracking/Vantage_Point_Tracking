@@ -1345,9 +1345,9 @@ function switchDashTab(tab, el) {
 }
 
 function openVesselDetail(vesselId, vesselName) {
-  currentVesselDetailId = id;
+  currentVesselDetailId = vesselId;
   switchVesselTab("logs", document.querySelector("#screen-vessel-detail .nav-tab"));
-  document.getElementById("vd-open-orders").textContent = (allMaintenanceOrders||[]).filter(o => o.vessel_id === id && o.status === "pending_review").length || "0";
+  document.getElementById("vd-open-orders").textContent = (allMaintenanceOrders||[]).filter(o => o.vessel_id === vesselId && o.status === "pending_review").length || "0";
   document.getElementById('vd-name').textContent = vesselName;
   const vLogs = allLogs.filter(l => l.vessel_id === vesselId).sort((a,b) => new Date(b.submitted_at)-new Date(a.submitted_at));
   const totalFlags = vLogs.reduce((s,l) => s+(parseInt(l.flag_count)||0),0);
