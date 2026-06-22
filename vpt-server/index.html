@@ -31,6 +31,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .chip-company_admin{background:rgba(201,168,76,0.15);color:var(--gold)}
 .chip-port_engineer{background:rgba(52,152,219,0.15);color:#3498DB}
 .chip-vessel_ops_manager{background:rgba(142,68,173,0.15);color:#9B59B6}
+.chip-engineering_crew{background:rgba(22,160,133,0.15);color:#1ABC9C}
 .chip-office{background:rgba(107,114,128,0.15);color:var(--steel)}
 .chip-crew{background:rgba(39,174,96,0.15);color:#27AE60}
 .chip-admin{background:rgba(201,168,76,0.15);color:var(--gold)}
@@ -593,6 +594,36 @@ select option{background:var(--surface2);color:var(--cream)}
   </div>
 </div>
 
+
+<!-- Engineering Crew Dashboard -->
+<div id="screen-engineering" class="screen" style="display:none">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 0 0.5rem">
+    <div>
+      <div class="dash-title" id="eng-greeting">Engineering</div>
+      <div style="font-size:12px;color:var(--gold);letter-spacing:0.5px;margin-top:2px;font-weight:500">American Marine Corporation</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="loadEngineeringDashboard()" class="btn btn-sm"><i class="ti ti-refresh"></i></button>
+    </div>
+  </div>
+
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="switchEngTab('assigned',this)">Assigned to Me</button>
+    <button class="nav-tab" onclick="switchEngTab('open',this)">All Open</button>
+    <button class="nav-tab" onclick="switchEngTab('completed',this)">Completed</button>
+  </div>
+
+  <div id="eng-tab-assigned">
+    <div class="card" id="eng-assigned-list"><div class="empty-state"><span class="spinner spinner-dark"></span></div></div>
+  </div>
+  <div id="eng-tab-open" style="display:none">
+    <div class="card" id="eng-open-list"><div class="empty-state"><span class="spinner spinner-dark"></span></div></div>
+  </div>
+  <div id="eng-tab-completed" style="display:none">
+    <div class="card" id="eng-completed-list"><div class="empty-state"><span class="spinner spinner-dark"></span></div></div>
+  </div>
+</div>
+
 <div id="screen-users" class="screen">
   <div class="topbar">
     <button class="back-btn" onclick="show('screen-dashboard')"><i class="ti ti-arrow-left"></i></button>
@@ -612,6 +643,9 @@ select option{background:var(--surface2);color:var(--cream)}
       <label>Role</label>
       <select id="new-role">
         <option value="crew">Crew — submit logs</option>
+        <option value="engineering_crew">Engineering Crew — work orders</option>
+        <option value="port_engineer">Port Engineer — maintenance management</option>
+        <option value="vessel_ops_manager">Vessel Ops Manager — operations</option>
         <option value="office">Office — view dashboard</option>
         <option value="admin">Admin — full access</option>
       </select>
@@ -844,8 +878,15 @@ function show(id) {
 
 function handleSuccessBack() {
   const role = currentUser ? currentUser.role : 'crew';
-  if (role === 'crew') { show('screen-vessels'); }
-  else { loadDashboard(); show('screen-dashboard'); }
+  if (role === 'crew') {
+    show('screen-vessels');
+  } else if (role === 'engineering_crew') {
+    loadEngineeringDashboard();
+    show('screen-engineering');
+  } else {
+    loadDashboard();
+    show('screen-dashboard');
+  }
 }
 
 async function doLogin() {
@@ -1346,54 +1387,82 @@ function switchDashTab(tab, el) {
 
 function openVesselDetail(vesselId, vesselName) {
   currentVesselDetailId = vesselId;
-  switchVesselTab("logs", document.querySelector("#screen-vessel-detail .nav-tab"));
-  document.getElementById("vd-open-orders").textContent = (allMaintenanceOrders||[]).filter(o => o.vessel_id === vesselId && o.status === "pending_review").length || "0";
-  document.getElementById('vd-name').textContent = vesselName;
+  // Reset to logs tab
+  const tabs = document.querySelectorAll('#screen-vessel-detail .nav-tab');
+  tabs.forEach(t => t.classList.remove('active'));
+  if (tabs[0]) tabs[0].classList.add('active');
+  const tabDivs = ['vd-tab-logs','vd-tab-trips','vd-tab-maintenance'];
+  tabDivs.forEach((t,i) => {
+    const el = document.getElementById(t);
+    if (el) el.style.display = i===0 ? 'block' : 'none';
+  });
+
+  // Set header
+  const nameEl = document.getElementById('vd-name');
+  const metaEl = document.getElementById('vd-meta');
+  if (nameEl) nameEl.textContent = vesselName;
+
+  // Calculate stats from cached data
   const vLogs = allLogs.filter(l => l.vessel_id === vesselId).sort((a,b) => new Date(b.submitted_at)-new Date(a.submitted_at));
   const totalFlags = vLogs.reduce((s,l) => s+(parseInt(l.flag_count)||0),0);
   const avg = vLogs.length ? Math.round(vLogs.reduce((s,l) => s+(parseInt(l.completion_pct)||0),0)/vLogs.length) : 0;
-  document.getElementById('vd-meta').textContent = vLogs.length + ' log' + (vLogs.length!==1?'s':'') + ' total';
-  document.getElementById('vd-total').textContent = vLogs.length;
-  document.getElementById('vd-flags').textContent = totalFlags;
-  document.getElementById('vd-avg').textContent = avg + '%';
+  const openOrders = (allMaintenanceOrders||[]).filter(o => o.vessel_id === vesselId && o.status === 'pending_review').length;
+
+  if (metaEl) metaEl.textContent = vLogs.length + ' log' + (vLogs.length!==1?'s':'') + ' total';
+
+  const totalEl = document.getElementById('vd-total');
+  const flagsEl = document.getElementById('vd-flags');
+  const ordersEl = document.getElementById('vd-open-orders');
   const flagsCard = document.getElementById('vd-flags-card');
-  flagsCard.className = 'metric-card ' + (totalFlags > 0 ? 'metric-alert' : 'metric-ok');
+
+  if (totalEl) totalEl.textContent = vLogs.length;
+  if (flagsEl) flagsEl.textContent = totalFlags;
+  if (ordersEl) ordersEl.textContent = openOrders || '0';
+  if (flagsCard) flagsCard.className = 'metric-card ' + (totalFlags > 0 ? 'metric-alert' : 'metric-ok');
 
   // Engine hours log
   const hoursList = document.getElementById('vd-hours-list');
-  const logsWithHours = vLogs.filter(l => l.engine_hours);
-  if (logsWithHours.length) {
-    hoursList.innerHTML = '<div style="display:flex;flex-direction:column;gap:6px">' +
-      logsWithHours.slice(0,10).map(l => {
-        const d = new Date(l.submitted_at);
-        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">' +
-          '<span style="font-size:13px;color:var(--cream)">' + d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + '</span>' +
-          '<span style="font-size:13px;font-weight:600;color:var(--gold)">' + l.engine_hours + ' hrs</span>' +
-          '</div>';
-      }).join('') + '</div>';
-  } else {
-    hoursList.innerHTML = '<span style="color:var(--steel);font-size:13px">No engine hours recorded yet</span>';
+  if (hoursList) {
+    const logsWithHours = vLogs.filter(l => l.engine_hours);
+    if (logsWithHours.length) {
+      hoursList.innerHTML = '<div style="display:flex;flex-direction:column;gap:6px">' +
+        logsWithHours.slice(0,10).map(l => {
+          const d = new Date(l.submitted_at);
+          return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">' +
+            '<span style="font-size:13px;color:var(--cream)">' + d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + '</span>' +
+            '<span style="font-size:13px;font-weight:600;color:var(--gold)">' + l.engine_hours + ' hrs</span>' +
+            '</div>';
+        }).join('') + '</div>';
+    } else {
+      hoursList.innerHTML = '<span style="color:var(--steel);font-size:13px">No engine hours recorded yet</span>';
+    }
   }
 
-  const el = document.getElementById('vd-logs');
-  if (!vLogs.length) { el.innerHTML = '<div class="empty-state">No logs for this vessel yet.</div>'; show('screen-vessel-detail'); return; }
-  el.innerHTML = '<div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;margin-bottom:10px;text-transform:uppercase">Log history</div>' +
-    vLogs.map(l => {
-    const d = new Date(l.submitted_at);
-    const pct = parseInt(l.completion_pct)||0;
-    const pillClass = pct===100?'pill-ok':pct>=75?'pill-warn':'pill-danger';
-    return '<div class="log-row">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center">' +
-      '<span style="font-size:14px;color:var(--cream)">' + d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}) + '</span>' +
-      '<span class="stat-pill ' + pillClass + '" style="font-size:10px">' + pct + '%</span>' +
-      '</div>' +
-      '<div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap">' +
-      '<span style="font-size:12px;color:var(--steel)">' + (l.engineer_name||'Unknown') + '</span>' +
-      (l.engine_hours?'<span style="font-size:11px;color:var(--gold)">' + l.engine_hours + ' hrs</span>':'') +
-      (parseInt(l.flag_count)>0?'<span class="stat-pill pill-warn" style="font-size:10px">'+l.flag_count+' flag'+(l.flag_count>1?'s':'')+'</span>':'<span style="font-size:11px;color:var(--steel)">No flags</span>') +
-      (l.notes?'<span style="font-size:11px;color:var(--steel);font-style:italic">Has notes</span>':'') +
-      '</div></div>';
-  }).join('');
+  // Log history
+  const logsEl = document.getElementById('vd-logs');
+  if (logsEl) {
+    if (!vLogs.length) {
+      logsEl.innerHTML = '<div class="empty-state">No logs for this vessel yet.</div>';
+    } else {
+      logsEl.innerHTML = '<div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;margin-bottom:10px;text-transform:uppercase">Log history</div>' +
+        vLogs.map(l => {
+          const d = new Date(l.submitted_at);
+          const pct = parseInt(l.completion_pct)||0;
+          const pillClass = pct===100?'pill-ok':pct>=75?'pill-warn':'pill-danger';
+          return '<div class="log-row">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center">' +
+            '<span style="font-size:14px;color:var(--cream)">' + d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}) + '</span>' +
+            '<span class="stat-pill ' + pillClass + '" style="font-size:10px">' + pct + '%</span>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap">' +
+            '<span style="font-size:12px;color:var(--steel)">' + (l.engineer_name||'Unknown') + '</span>' +
+            (l.engine_hours?'<span style="font-size:11px;color:var(--gold)">' + l.engine_hours + ' hrs</span>':'') +
+            (parseInt(l.flag_count)>0?'<span class="stat-pill pill-warn" style="font-size:10px">'+l.flag_count+' flag'+(l.flag_count>1?'s':'')+'</span>':'<span style="font-size:11px;color:var(--steel)">No flags</span>') +
+            '</div></div>';
+        }).join('');
+    }
+  }
+
   show('screen-vessel-detail');
 }
 
@@ -2698,22 +2767,20 @@ function setRIPriority(priority) {
 }
 
 async function submitReportIssue() {
-  const vessel_id = document.getElementById('ri-vessel-id').value;
-  const system = document.getElementById('ri-system').value;
-  const description = document.getElementById('ri-description').value.trim();
-  const priority = document.getElementById('ri-priority').value || 'medium';
-  const error_codes = document.getElementById('ri-error-codes').value.trim();
+  const vessel_id = document.getElementById('ri-vessel-id') ? document.getElementById('ri-vessel-id').value : '';
+  const system = document.getElementById('ri-system') ? document.getElementById('ri-system').value : '';
+  const description = document.getElementById('ri-description') ? document.getElementById('ri-description').value.trim() : '';
+  const priority = document.getElementById('ri-priority') ? document.getElementById('ri-priority').value : 'medium';
+  const error_codes = document.getElementById('ri-error-codes') ? document.getElementById('ri-error-codes').value.trim() : '';
   const errEl = document.getElementById('ri-error');
 
-  // Validate
-  if (!vessel_id) { errEl.textContent = 'Please select a vessel.'; errEl.style.display = 'block'; return; }
-  if (!system) { errEl.textContent = 'Please select a system.'; errEl.style.display = 'block'; return; }
-  if (!description) { errEl.textContent = 'Please describe the issue.'; errEl.style.display = 'block'; return; }
-  errEl.style.display = 'none';
+  if (!vessel_id) { if(errEl){errEl.textContent='Please select a vessel.';errEl.style.display='block';} return; }
+  if (!system) { if(errEl){errEl.textContent='Please select a system.';errEl.style.display='block';} return; }
+  if (!description) { if(errEl){errEl.textContent='Please describe the issue.';errEl.style.display='block';} return; }
+  if (errEl) errEl.style.display = 'none';
 
   const btn = document.getElementById('ri-submit-btn');
-  btn.disabled = true;
-  btn.textContent = 'Submitting...';
+  if (btn) { btn.disabled = true; btn.textContent = 'Submitting...'; }
 
   try {
     const res = await fetch(API + '/api/maintenance/orders', {
@@ -2723,16 +2790,12 @@ async function submitReportIssue() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Submission failed');
-
-    // Success
     loadNotifications();
-    alert('Issue reported successfully. The port engineer and vessel ops manager have been notified.');
+    alert('Issue reported! The port engineer and vessel ops manager have been notified.');
     closeReportIssueScreen();
   } catch(e) {
-    errEl.textContent = 'Error: ' + e.message;
-    errEl.style.display = 'block';
-    btn.disabled = false;
-    btn.textContent = 'Submit Issue Report';
+    if (errEl) { errEl.textContent = 'Error: ' + e.message; errEl.style.display = 'block'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Submit Issue Report'; }
   }
 }
 
@@ -2740,9 +2803,12 @@ async function submitReportIssue() {
 function switchVesselTab(tab, el) {
   document.querySelectorAll('#screen-vessel-detail .nav-tab').forEach(t => t.classList.remove('active'));
   if (el) el.classList.add('active');
-  document.getElementById('vd-tab-logs').style.display = tab === 'logs' ? 'block' : 'none';
-  document.getElementById('vd-tab-trips').style.display = tab === 'trips' ? 'block' : 'none';
-  document.getElementById('vd-tab-maintenance').style.display = tab === 'maintenance' ? 'block' : 'none';
+  const logsDiv = document.getElementById('vd-tab-logs');
+  const tripsDiv = document.getElementById('vd-tab-trips');
+  const maintDiv = document.getElementById('vd-tab-maintenance');
+  if (logsDiv) logsDiv.style.display = tab === 'logs' ? 'block' : 'none';
+  if (tripsDiv) tripsDiv.style.display = tab === 'trips' ? 'block' : 'none';
+  if (maintDiv) maintDiv.style.display = tab === 'maintenance' ? 'block' : 'none';
   if (tab === 'trips') loadVesselTrips();
   if (tab === 'maintenance') loadVesselMaintenance();
 }
@@ -2831,6 +2897,105 @@ async function updateOrderStatus(orderId, newStatus) {
   } catch(e) {
     alert('Failed to update order status: ' + e.message);
   }
+}
+
+
+// ── ENGINEERING CREW DASHBOARD ──────────────────────────────
+
+async function loadEngineeringDashboard() {
+  const hr = new Date().getHours();
+  const greeting = hr<12?'Good morning':hr<17?'Good afternoon':'Good evening';
+  const greetEl = document.getElementById('eng-greeting');
+  if (greetEl) greetEl.textContent = greeting + ', ' + (currentUser ? currentUser.full_name || 'Engineer' : 'Engineer');
+  switchEngTab('assigned', document.querySelector('#screen-engineering .nav-tab'));
+}
+
+function switchEngTab(tab, el) {
+  document.querySelectorAll('#screen-engineering .nav-tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.getElementById('eng-tab-assigned').style.display = tab === 'assigned' ? 'block' : 'none';
+  document.getElementById('eng-tab-open').style.display = tab === 'open' ? 'block' : 'none';
+  document.getElementById('eng-tab-completed').style.display = tab === 'completed' ? 'block' : 'none';
+  if (tab === 'assigned') loadEngOrders('assigned');
+  if (tab === 'open') loadEngOrders('open');
+  if (tab === 'completed') loadEngOrders('completed');
+}
+
+async function loadEngOrders(type) {
+  const elMap = { assigned: 'eng-assigned-list', open: 'eng-open-list', completed: 'eng-completed-list' };
+  const el = document.getElementById(elMap[type]);
+  if (!el) return;
+  el.innerHTML = '<div class="empty-state"><span class="spinner spinner-dark"></span></div>';
+  try {
+    const res = await fetch(API + '/api/maintenance/orders', {headers: {'Authorization': 'Bearer ' + token}});
+    const data = await res.json();
+    let orders = data.orders || [];
+    const myId = currentUser ? currentUser.id : null;
+    if (type === 'assigned') orders = orders.filter(o => o.assigned_to === myId && o.status === 'in_progress');
+    else if (type === 'open') orders = orders.filter(o => o.status === 'pending_review');
+    else if (type === 'completed') orders = orders.filter(o => o.status === 'completed' && o.reviewed_by === myId);
+
+    if (!orders.length) {
+      const msgs = { assigned: 'No orders assigned to you.', open: 'No open work orders.', completed: 'No completed orders yet.' };
+      el.innerHTML = '<div class="empty-state">' + msgs[type] + '</div>';
+      return;
+    }
+
+    const statusColors = { pending_review: 'var(--amber)', in_progress: 'var(--gold)', completed: 'var(--green)' };
+    const priorityColors = { high: 'var(--red)', medium: 'var(--amber)', low: 'var(--steel)' };
+
+    el.innerHTML = orders.map(o => {
+      const sc = statusColors[o.status] || 'var(--steel)';
+      const pc = priorityColors[o.priority] || 'var(--steel)';
+      const date = new Date(o.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+      const vessel = allVessels.find(v => v.id === o.vessel_id);
+      const vesselName = vessel ? vessel.name : 'Unknown vessel';
+      const actionBtn = type === 'open' ?
+        '<button type="button" onclick="claimOrder(\'' + o.id + '\')" style="margin-top:8px;padding:6px 14px;font-size:12px;border-radius:6px;border:1px solid var(--gold);background:rgba(201,168,76,0.1);color:var(--gold);cursor:pointer">Claim & Start</button>' :
+        type === 'assigned' ?
+        '<button type="button" onclick="markOrderComplete(\'' + o.id + '\')" style="margin-top:8px;padding:6px 14px;font-size:12px;border-radius:6px;border:1px solid var(--green);background:rgba(39,174,96,0.1);color:var(--green);cursor:pointer">Mark Complete</button>' : '';
+      return '<div style="padding:14px 0;border-bottom:1px solid var(--border)">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
+        '<div style="flex:1">' +
+        '<div style="font-size:11px;color:var(--steel);margin-bottom:4px">' + vesselName + ' — ' + date + '</div>' +
+        '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' +
+        '<span style="font-size:14px;font-weight:600;color:var(--cream)">' + o.system + '</span>' +
+        '<span style="font-size:10px;padding:2px 6px;border-radius:10px;border:1px solid ' + pc + ';color:' + pc + '">' + (o.priority||'medium') + '</span>' +
+        '</div>' +
+        '<div style="font-size:13px;color:var(--steel);margin-top:4px;line-height:1.4">' + o.description + '</div>' +
+        actionBtn +
+        '</div>' +
+        '<span style="font-size:11px;padding:3px 8px;border-radius:10px;border:1px solid ' + sc + ';color:' + sc + ';white-space:nowrap">' + o.status.replace('_',' ') + '</span>' +
+        '</div></div>';
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="empty-state" style="color:var(--red)">Failed to load orders.</div>';
+  }
+}
+
+async function claimOrder(orderId) {
+  try {
+    const res = await fetch(API + '/api/maintenance/orders/' + orderId + '/approve', {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json','Authorization':'Bearer ' + token},
+      body: JSON.stringify({status: 'in_progress', review_note: 'Claimed by engineer'})
+    });
+    if (!res.ok) throw new Error('Failed');
+    switchEngTab('assigned', document.querySelector('#screen-engineering .nav-tab'));
+  } catch(e) { alert('Failed to claim order: ' + e.message); }
+}
+
+async function markOrderComplete(orderId) {
+  try {
+    const res = await fetch(API + '/api/maintenance/orders/' + orderId + '/approve', {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json','Authorization':'Bearer ' + token},
+      body: JSON.stringify({status: 'completed', review_note: 'Completed by engineer'})
+    });
+    if (!res.ok) throw new Error('Failed');
+    switchEngTab('assigned', document.querySelector('#screen-engineering .nav-tab'));
+    loadNotifications();
+  } catch(e) { alert('Failed to update order: ' + e.message); }
 }
 
 </script>
