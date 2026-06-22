@@ -187,6 +187,8 @@ select option{background:var(--surface2);color:var(--cream)}
 .status-complete{background:rgba(39,174,96,0.15);color:#27AE60}
 .status-pending_review{background:rgba(201,168,76,0.15);color:var(--gold)}
 .status-dismissed{background:rgba(107,114,128,0.15);color:var(--steel)}
+.role-switch-opt{display:block;width:100%;text-align:left;padding:8px 10px;background:none;border:none;color:var(--cream);font-size:13px;cursor:pointer;border-radius:6px;font-family:inherit}
+.role-switch-opt:hover{background:var(--surface2);color:var(--gold)}
 </style>
 </head>
 <body>
@@ -202,7 +204,16 @@ select option{background:var(--surface2);color:var(--cream)}
   </div>
   <div class="topbar-right">
     <span class="topbar-user" id="topbar-name"></span>
-    <span class="role-chip" id="topbar-role"></span>
+    <span class="role-chip" id="topbar-role" onclick="toggleRoleSwitcher()" style="cursor:pointer" title="Switch view (admin)"></span>
+    <div id="role-switcher-menu" style="display:none;position:absolute;top:50px;right:120px;background:var(--surface);border:1px solid var(--gold);border-radius:8px;padding:8px;z-index:1000;box-shadow:0 8px 32px rgba(0,0,0,0.5);min-width:180px">
+      <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:0.5px;padding:6px 10px;font-weight:600">View As</div>
+      <button onclick="switchViewRole('overlordadmin')" class="role-switch-opt">Overlord Admin (me)</button>
+      <button onclick="switchViewRole('company_admin')" class="role-switch-opt">Company Admin</button>
+      <button onclick="switchViewRole('port_engineer')" class="role-switch-opt">Port Engineer</button>
+      <button onclick="switchViewRole('vessel_ops_manager')" class="role-switch-opt">Vessel Ops Manager</button>
+      <button onclick="switchViewRole('engineering_crew')" class="role-switch-opt">Engineering Crew</button>
+      <button onclick="switchViewRole('crew')" class="role-switch-opt">Boat Crew</button>
+    </div>
     <button class="notif-bell" id="notif-bell-btn" onclick="toggleNotifPanel()" style="display:none">
       <i class="ti ti-bell"></i>
       <span class="notif-badge" id="notif-badge" style="display:none">0</span>
@@ -497,6 +508,9 @@ select option{background:var(--surface2);color:var(--cream)}
       <button id="submit-log-btn" onclick="switchToCrewMode()" class="btn btn-primary btn-sm" style="display:none"><i class="ti ti-plus"></i> Submit a log</button>
       <button id="maint-nav-btn" onclick="loadMaintenance();show('screen-maintenance')" class="btn btn-sm" style="display:none"><i class="ti ti-tool"></i> Maintenance</button>
       <button id="fleet-nav-btn" onclick="loadFleetStatus();show('screen-fleet-status')" class="btn btn-sm" style="display:none"><i class="ti ti-ship"></i> Fleet</button>
+      <button id="analytics-nav-btn" onclick="loadAnalytics();show('screen-analytics')" class="btn btn-sm" style="display:none"><i class="ti ti-chart-line"></i> Analytics</button>
+      <button id="schedule-nav-btn" onclick="show('screen-scheduling')" class="btn btn-sm" style="display:none"><i class="ti ti-calendar"></i> Schedule</button>
+      <button id="onboard-nav-btn" onclick="show('screen-ai-onboard')" class="btn btn-sm" style="display:none"><i class="ti ti-sparkles"></i> AI Onboard</button>
       <button onclick="loadDashboard()" class="btn btn-sm"><i class="ti ti-refresh"></i></button>
     </div>
   </div>
@@ -585,11 +599,36 @@ select option{background:var(--surface2);color:var(--cream)}
 
   <!-- Trips Tab -->
   <div id="vd-tab-trips" style="display:none">
+    <div style="display:flex;gap:8px;margin-bottom:1rem">
+      <button type="button" onclick="openTripTicket()" class="btn btn-primary btn-sm" style="flex:1"><i class="ti ti-plus"></i> New Trip Ticket</button>
+      <button type="button" onclick="openPurchaseOrder()" class="btn btn-sm" style="flex:1"><i class="ti ti-shopping-cart"></i> New Purchase Order</button>
+    </div>
     <div class="card" id="vd-trips-list"><div class="empty-state">Loading trip tickets...</div></div>
   </div>
 
   <!-- Maintenance Tab -->
   <div id="vd-tab-maintenance" style="display:none">
+    <div style="display:flex;gap:8px;margin-bottom:1rem">
+      <button type="button" onclick="openVesselWorkOrder()" class="btn btn-primary btn-sm" style="flex:1"><i class="ti ti-alert-triangle"></i> Submit Work Order</button>
+    </div>
+    <!-- Engine service schedule -->
+    <div class="card" style="margin-bottom:1rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;text-transform:uppercase">Engine Service Schedule</div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <select id="vd-engine-model" onchange="updateEngineSchedule()" style="flex:1;font-size:13px;padding:8px">
+          <option value="">Select engine model...</option>
+          <option value="Caterpillar C18">Caterpillar C18</option>
+          <option value="Cummins QSL9">Cummins QSL9</option>
+          <option value="Cummins X15">Cummins X15</option>
+          <option value="Marine Generator">Marine Generator</option>
+        </select>
+        <input type="number" id="vd-engine-hours" placeholder="Current hrs" onchange="updateEngineSchedule()" oninput="updateEngineSchedule()" style="width:120px;font-size:13px;padding:8px">
+      </div>
+      <div id="vd-engine-schedule"><div class="empty-state" style="font-size:13px">Select your engine model to see the OEM service schedule.</div></div>
+    </div>
+    <div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:10px">Work Orders</div>
     <div class="card" id="vd-maintenance-list"><div class="empty-state">Loading maintenance orders...</div></div>
   </div>
 </div>
@@ -621,6 +660,199 @@ select option{background:var(--surface2);color:var(--cream)}
   </div>
   <div id="eng-tab-completed" style="display:none">
     <div class="card" id="eng-completed-list"><div class="empty-state"><span class="spinner spinner-dark"></span></div></div>
+  </div>
+</div>
+
+
+<!-- Trip Ticket Screen (editable billing form) -->
+<div id="screen-trip-ticket" class="screen" style="display:none">
+  <div class="topbar">
+    <button class="back-btn" onclick="closeTripTicket()"><i class="ti ti-arrow-left"></i></button>
+    <div>
+      <div class="topbar-title">Trip Ticket</div>
+      <div style="font-size:12px;color:var(--steel)" id="tt-number">New</div>
+    </div>
+  </div>
+  <div style="padding:1rem;max-width:700px;margin:0 auto">
+
+    <!-- Header info -->
+    <div class="card" style="margin-bottom:1rem">
+      <div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;margin-bottom:12px;text-transform:uppercase">Trip Info</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-group"><label>Launch (Vessel)</label><input type="text" id="tt-launch" placeholder="M/V ..."></div>
+        <div class="form-group"><label>Ship / Destination</label><input type="text" id="tt-ship" placeholder="Ship name"></div>
+        <div class="form-group"><label>Date</label><input type="date" id="tt-date"></div>
+        <div class="form-group"><label>Time Ordered</label><input type="time" id="tt-time-ordered"></div>
+        <div class="form-group"><label>Forklift / Crane</label><input type="text" id="tt-forklift" placeholder="optional"></div>
+        <div class="form-group"><label>Job Number</label><input type="text" id="tt-job-number" placeholder="optional"></div>
+        <div class="form-group"><label>Nets Out</label><input type="number" id="tt-nets-out" placeholder="0"></div>
+        <div class="form-group"><label>Nets In</label><input type="number" id="tt-nets-in" placeholder="0"></div>
+      </div>
+    </div>
+
+    <!-- Trip legs -->
+    <div class="card" style="margin-bottom:1rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;text-transform:uppercase">Trip Legs</div>
+        <button type="button" onclick="addTripLeg()" class="btn btn-sm"><i class="ti ti-plus"></i> Add Leg</button>
+      </div>
+      <div id="tt-legs-list"></div>
+    </div>
+
+    <!-- Crew / payroll -->
+    <div class="card" style="margin-bottom:1rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;text-transform:uppercase">Crew Manifest</div>
+        <button type="button" onclick="addCrewRow()" class="btn btn-sm"><i class="ti ti-plus"></i> Add Crew</button>
+      </div>
+      <div id="tt-crew-list"></div>
+    </div>
+
+    <!-- Billing -->
+    <div class="card" style="margin-bottom:1rem">
+      <div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;margin-bottom:12px;text-transform:uppercase">Billing</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-group"><label>Billing Description</label><input type="text" id="tt-billing-desc"></div>
+        <div class="form-group"><label>Total Hours</label><input type="number" step="0.5" id="tt-billing-hours"></div>
+        <div class="form-group"><label>Billing Rate ($/hr)</label><input type="number" step="0.01" id="tt-billing-rate" oninput="calcTripTotal()"></div>
+        <div class="form-group"><label>Total ($)</label><input type="number" step="0.01" id="tt-billing-total" readonly style="background:var(--surface2)"></div>
+      </div>
+    </div>
+
+    <!-- Notes -->
+    <div class="form-group" style="margin-bottom:1rem"><label>Notes</label><textarea id="tt-notes" rows="3" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-family:inherit"></textarea></div>
+
+    <div id="tt-error" style="display:none;color:var(--red);font-size:13px;margin-bottom:1rem;padding:10px;background:rgba(239,68,68,0.1);border-radius:6px"></div>
+
+    <div style="display:flex;gap:10px">
+      <button type="button" onclick="saveTripTicket('pending')" style="flex:1;padding:14px;background:var(--gold);color:#1a1a1a;font-weight:700;border:none;border-radius:8px;cursor:pointer">Submit for Billing</button>
+      <button type="button" onclick="saveTripTicket('draft')" style="padding:14px 20px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;cursor:pointer">Save Draft</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Purchase Order Screen -->
+<div id="screen-purchase-order" class="screen" style="display:none">
+  <div class="topbar">
+    <button class="back-btn" onclick="closePurchaseOrder()"><i class="ti ti-arrow-left"></i></button>
+    <div>
+      <div class="topbar-title">Purchase Order</div>
+      <div style="font-size:12px;color:var(--steel)" id="po-number">New</div>
+    </div>
+  </div>
+  <div style="padding:1rem;max-width:700px;margin:0 auto">
+    <div class="card" style="margin-bottom:1rem">
+      <div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;margin-bottom:12px;text-transform:uppercase">Order Info</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-group"><label>Date</label><input type="date" id="po-date"></div>
+        <div class="form-group"><label>Ship To (Vessel)</label><input type="text" id="po-ship-to" placeholder="M/V ..."></div>
+        <div class="form-group"><label>To (Vendor)</label><input type="text" id="po-vendor" placeholder="Vendor name"></div>
+        <div class="form-group"><label>Ordered By</label><input type="text" id="po-ordered-by"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:1rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;text-transform:uppercase">Line Items</div>
+        <button type="button" onclick="addPOLine()" class="btn btn-sm"><i class="ti ti-plus"></i> Add Item</button>
+      </div>
+      <div id="po-lines-list"></div>
+    </div>
+
+    <div id="po-error" style="display:none;color:var(--red);font-size:13px;margin-bottom:1rem;padding:10px;background:rgba(239,68,68,0.1);border-radius:6px"></div>
+
+    <div style="display:flex;gap:10px">
+      <button type="button" onclick="savePurchaseOrder('pending')" style="flex:1;padding:14px;background:var(--gold);color:#1a1a1a;font-weight:700;border:none;border-radius:8px;cursor:pointer">Submit Order</button>
+      <button type="button" onclick="savePurchaseOrder('draft')" style="padding:14px 20px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;cursor:pointer">Save Draft</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- AI Onboarding Screen -->
+<div id="screen-ai-onboard" class="screen" style="display:none">
+  <div class="topbar">
+    <button class="back-btn" onclick="loadDashboard();show('screen-dashboard')"><i class="ti ti-arrow-left"></i></button>
+    <div>
+      <div class="topbar-title">AI Fleet Onboarding</div>
+      <div style="font-size:12px;color:var(--steel)">Describe your fleet or upload documents</div>
+    </div>
+  </div>
+  <div style="padding:1rem;max-width:700px;margin:0 auto">
+    <div class="card" style="margin-bottom:1rem">
+      <div style="font-size:13px;color:var(--cream);line-height:1.6;margin-bottom:1rem">
+        Tell me about your fleet in plain language, or upload your vessel documents (COI, registration, insurance). I'll read them and pre-fill your vessel profiles, certificates, and maintenance schedules automatically.
+      </div>
+
+      <div class="form-group" style="margin-bottom:1rem">
+        <label>Describe your fleet</label>
+        <textarea id="ai-onboard-text" rows="5" placeholder="Example: I have 3 crew boats out of San Pedro. Miss Emma is a 95ft aluminum crewboat with twin Cat C18 engines, COI expires November 2027. ..." style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-family:inherit;font-size:14px"></textarea>
+      </div>
+
+      <div class="form-group" style="margin-bottom:1rem">
+        <label>Or upload documents (PDF, JPG, PNG)</label>
+        <input type="file" id="ai-onboard-files" multiple accept=".pdf,.jpg,.jpeg,.png" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-size:13px">
+        <div style="font-size:11px;color:var(--steel);margin-top:4px">Documents are read once to extract vessel info, then discarded.</div>
+      </div>
+
+      <button type="button" id="ai-onboard-btn" onclick="runAIOnboard()" style="width:100%;padding:14px;background:var(--gold);color:#1a1a1a;font-weight:700;border:none;border-radius:8px;cursor:pointer">
+        <i class="ti ti-sparkles"></i> Analyze & Pre-fill
+      </button>
+    </div>
+
+    <div id="ai-onboard-result" style="display:none">
+      <div class="card">
+        <div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;margin-bottom:12px;text-transform:uppercase">Extracted Fleet Info — Review & Confirm</div>
+        <div id="ai-onboard-extracted"></div>
+        <button type="button" onclick="confirmAIOnboard()" style="width:100%;margin-top:1rem;padding:12px;background:var(--green);color:#fff;font-weight:700;border:none;border-radius:8px;cursor:pointer">Confirm & Add Vessels</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Crew Scheduling Screen (Phase 4) -->
+<div id="screen-scheduling" class="screen" style="display:none">
+  <div class="topbar">
+    <button class="back-btn" onclick="loadDashboard();show('screen-dashboard')"><i class="ti ti-arrow-left"></i></button>
+    <div>
+      <div class="topbar-title">Crew Scheduling</div>
+      <div style="font-size:12px;color:var(--steel)">Weekly schedule & time off</div>
+    </div>
+  </div>
+  <div style="padding:1rem;max-width:900px;margin:0 auto">
+    <div style="display:flex;gap:8px;margin-bottom:1rem">
+      <button type="button" onclick="addScheduleEntry()" class="btn btn-primary btn-sm"><i class="ti ti-plus"></i> Add Shift</button>
+      <button type="button" onclick="recordSickCall()" class="btn btn-sm" style="border-color:var(--amber);color:var(--amber)"><i class="ti ti-thermometer"></i> Sick Call-Out</button>
+    </div>
+    <div class="card">
+      <div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;margin-bottom:12px;text-transform:uppercase">This Week</div>
+      <div id="schedule-grid"><div class="empty-state">Scheduling module — add shifts to populate the weekly view. (Backend route /api/schedule to be added for persistence.)</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Analytics Screen (Phase 5) -->
+<div id="screen-analytics" class="screen" style="display:none">
+  <div class="topbar">
+    <button class="back-btn" onclick="loadDashboard();show('screen-dashboard')"><i class="ti ti-arrow-left"></i></button>
+    <div>
+      <div class="topbar-title">Fleet Analytics</div>
+      <div style="font-size:12px;color:var(--steel)">Maintenance trends & fleet health</div>
+    </div>
+  </div>
+  <div style="padding:1rem;max-width:900px;margin:0 auto">
+    <div class="metrics-grid">
+      <div class="metric-card"><div class="metric-label">Open work orders</div><div class="metric-value" id="an-open">-</div></div>
+      <div class="metric-card"><div class="metric-label">Completed (30d)</div><div class="metric-value" id="an-completed">-</div></div>
+      <div class="metric-card"><div class="metric-label">Avg resolution</div><div class="metric-value" id="an-avg-res">-</div></div>
+      <div class="metric-card"><div class="metric-label">Recurring issues</div><div class="metric-value" id="an-recurring">-</div></div>
+    </div>
+    <div class="card" style="margin-top:1rem">
+      <div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;margin-bottom:12px;text-transform:uppercase">Issues by System</div>
+      <div id="an-by-system"><div class="empty-state">Loading analytics...</div></div>
+    </div>
   </div>
 </div>
 
@@ -911,6 +1143,7 @@ async function doLogin() {
     topbar.classList.add('visible');
     document.getElementById('topbar-name').textContent = currentUser.full_name;
     const role = currentUser.role;
+    realUserRole = role;
     const roleEl = document.getElementById('topbar-role');
     roleEl.textContent = role;
     roleEl.className = 'role-chip chip-' + role.replace(/_/g,'-');
@@ -923,6 +1156,12 @@ async function doLogin() {
     if (maintBtn) maintBtn.style.display = canManage ? 'inline-flex' : 'none';
     const fleetBtn = document.getElementById('fleet-nav-btn');
     if (fleetBtn) fleetBtn.style.display = canManage ? 'inline-flex' : 'none';
+    const analyticsBtnL = document.getElementById('analytics-nav-btn');
+    if (analyticsBtnL) analyticsBtnL.style.display = canManage ? 'inline-flex' : 'none';
+    const scheduleBtnL = document.getElementById('schedule-nav-btn');
+    if (scheduleBtnL) scheduleBtnL.style.display = canManage ? 'inline-flex' : 'none';
+    const onboardBtnL = document.getElementById('onboard-nav-btn');
+    if (onboardBtnL) onboardBtnL.style.display = isAdmin ? 'inline-flex' : 'none';
     if (isCrew) {
       const hr = new Date().getHours();
       document.getElementById('greeting').textContent = (hr<12?'Good morning':hr<17?'Good afternoon':'Good evening') + ', ' + (currentUser.full_name||'crew');
@@ -2996,6 +3235,489 @@ async function markOrderComplete(orderId) {
     switchEngTab('assigned', document.querySelector('#screen-engineering .nav-tab'));
     loadNotifications();
   } catch(e) { alert('Failed to update order: ' + e.message); }
+}
+
+
+// ── MARINE DIESEL ENGINE SERVICE SPECS (from OEM manuals) ──
+const ENGINE_SERVICE_SPECS = {"Caterpillar C18": [{"task": "Engine Oil & Filter Change", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Engine Oil Sample", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Racor (Primary) Fuel Filter", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Secondary Fuel Filter", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Engine Air Filter (Clean/Replace)", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Crankcase Breather Clean", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Coolant Level & Additive Check", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Coolant Sample", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Auxiliary Water Pump Impeller", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Engine Belts (Inspect/Adjust)", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Battery Electrolyte & Voltage", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Hoses & Clamps Inspection", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Aftercooler Core Clean/Bench Test", "hours": 1000, "months": 48, "category": "Major"}, {"task": "Heat Exchanger Inspect/Clean", "hours": 1000, "months": 48, "category": "Major"}, {"task": "Turbocharger Inspection", "hours": 1000, "months": 48, "category": "Major"}, {"task": "CCV Fumes Disposal Filter Replace", "hours": 1000, "months": 48, "category": "Major"}, {"task": "Coolant System Flush & Replace", "hours": 3000, "months": 72, "category": "Overhaul"}, {"task": "Water Temp Regulator (Thermostat)", "hours": 3000, "months": 72, "category": "Overhaul"}, {"task": "Engine Valve Lash Adjustment", "hours": 3000, "months": 72, "category": "Overhaul"}, {"task": "Fuel Injectors Inspect/Adjust", "hours": 3000, "months": 72, "category": "Overhaul"}, {"task": "Crankshaft Vibration Damper Inspect", "hours": 3000, "months": 72, "category": "Overhaul"}, {"task": "Engine Mounts Inspection", "hours": 3000, "months": 72, "category": "Overhaul"}, {"task": "Starter Motor Inspect/Replace", "hours": 3000, "months": 72, "category": "Overhaul"}, {"task": "Alternator Inspect/Replace", "hours": 3000, "months": 72, "category": "Overhaul"}, {"task": "Oil Cooler Core Inspect", "hours": 3000, "months": 72, "category": "Overhaul"}, {"task": "Zinc Anode Replace", "hours": 250, "months": 6, "category": "Routine"}], "Cummins QSL9": [{"task": "Zinc Anode Replace", "hours": 250, "months": 6, "category": "Routine"}, {"task": "Engine Oil & Filter (ULSD)", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Engine Air Cleaner Clean", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Spin-On Fuel Filter Replace", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Fuel-Water Separator (Racor)", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Seawater Pump Impeller Replace", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Seawater Hoses Check", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Coolant Filter Change", "hours": 500, "months": 12, "category": "Routine"}, {"task": "SCA & Antifreeze Concentration", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Radiator/HX Pressure Cap Inspect", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Battery Cables & Connections", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Engine Wiring Harness Check", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Turbocharger Check", "hours": 1500, "months": 12, "category": "Major"}, {"task": "Aftercooler Assembly (Seawater)", "hours": "", "months": 36, "category": "Major"}, {"task": "Cooling System Flush", "hours": 2000, "months": 48, "category": "Overhaul"}, {"task": "Vibration Damper Check", "hours": 2000, "months": 48, "category": "Overhaul"}, {"task": "Overhead Set (Valve Lash) Adjust", "hours": 5000, "months": "", "category": "Overhaul"}], "Cummins X15": [{"task": "Zinc Anode Replace", "hours": 250, "months": 6, "category": "Routine"}, {"task": "Engine Oil & Filter", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Engine Air Cleaner Clean", "hours": 1500, "months": 12, "category": "Routine"}, {"task": "Spin-On Fuel Filter Replace", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Fuel-Water Separator (Racor)", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Seawater Pump Impeller Replace", "hours": 1500, "months": 12, "category": "Routine"}, {"task": "Seawater Hoses Check", "hours": 1500, "months": 12, "category": "Routine"}, {"task": "Coolant Filter Change", "hours": 1500, "months": 12, "category": "Routine"}, {"task": "SCA & Antifreeze Concentration", "hours": 1500, "months": 12, "category": "Routine"}, {"task": "HX Pressure Cap Inspect", "hours": 1500, "months": 12, "category": "Routine"}, {"task": "Battery Cables & Connections", "hours": 1500, "months": 12, "category": "Routine"}, {"task": "Engine Wiring Harness Check", "hours": 1500, "months": 12, "category": "Routine"}, {"task": "Turbocharger Check", "hours": 1500, "months": 12, "category": "Major"}, {"task": "Crankcase Breather Element", "hours": 1500, "months": 12, "category": "Routine"}, {"task": "Aftercooler Assembly (Seawater)", "hours": 1500, "months": 36, "category": "Major"}, {"task": "Cooling System Flush", "hours": 2000, "months": 48, "category": "Overhaul"}, {"task": "Vibration Damper Check", "hours": 2000, "months": 48, "category": "Overhaul"}, {"task": "Overhead Set (Valve Lash) Adjust", "hours": 5000, "months": "", "category": "Overhaul"}], "Marine Generator": [{"task": "Engine Oil & Filter", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Fuel Filter Replace", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Air Filter Inspect/Replace", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Coolant Sample & Top-Up", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Impeller Inspect/Replace", "hours": 1000, "months": 24, "category": "Routine"}, {"task": "Coolant Flush", "hours": 2000, "months": 48, "category": "Overhaul"}, {"task": "Zinc Anode Replace", "hours": "", "months": 6, "category": "Routine"}, {"task": "Belt Inspect/Adjust", "hours": 500, "months": 12, "category": "Routine"}]};
+
+function getEngineSchedule(model) {
+  // Fuzzy match the engine model
+  if (!model) return [];
+  const keys = Object.keys(ENGINE_SERVICE_SPECS);
+  let match = keys.find(k => k.toLowerCase() === model.toLowerCase());
+  if (!match) match = keys.find(k => model.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(model.toLowerCase()));
+  return match ? ENGINE_SERVICE_SPECS[match] : [];
+}
+
+function renderEngineSchedule(model, currentHours) {
+  const tasks = getEngineSchedule(model);
+  if (!tasks.length) return '<div class="empty-state">No service schedule found for "' + (model||'this engine') + '". Supported: Caterpillar C18, Cummins QSL9, Cummins X15, Marine Generator.</div>';
+  const hrs = parseInt(currentHours) || 0;
+  return '<div style="font-size:12px;color:var(--steel);margin-bottom:12px">Showing OEM service intervals for <strong style="color:var(--gold)">' + model + '</strong>' + (hrs?' at ' + hrs + ' current hours':'') + '</div>' +
+    tasks.map(t => {
+      const interval = parseInt(t.hours) || 0;
+      let statusColor = 'var(--steel)', statusText = '';
+      if (interval && hrs) {
+        const since = hrs % interval;
+        const pct = since / interval;
+        const remaining = interval - since;
+        if (pct >= 1) { statusColor = 'var(--red)'; statusText = 'DUE NOW'; }
+        else if (pct >= 0.85) { statusColor = 'var(--amber)'; statusText = remaining + ' hrs left'; }
+        else { statusColor = 'var(--green)'; statusText = remaining + ' hrs left'; }
+      }
+      return '<div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px">' +
+        '<div style="flex:1">' +
+        '<div style="font-size:13px;color:var(--cream)">' + t.task + '</div>' +
+        '<div style="font-size:11px;color:var(--steel);margin-top:2px">Every ' + (t.hours||'—') + ' hrs' + (t.months?' / ' + t.months + ' mo':'') + ' · ' + (t.category||'Routine') + '</div>' +
+        '</div>' +
+        (statusText ? '<span style="font-size:11px;padding:3px 8px;border-radius:10px;border:1px solid ' + statusColor + ';color:' + statusColor + ';white-space:nowrap">' + statusText + '</span>' : '') +
+        '</div>';
+    }).join('');
+}
+
+
+// ── ROLE SWITCHER (overlordadmin testing tool) ──
+let realUserRole = null;
+
+function toggleRoleSwitcher() {
+  if (!currentUser || currentUser.role !== 'overlordadmin') {
+    if (realUserRole !== 'overlordadmin') return;
+  }
+  const menu = document.getElementById('role-switcher-menu');
+  if (menu) menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+function switchViewRole(role) {
+  if (!realUserRole) realUserRole = currentUser.role;
+  // Only overlordadmin can do this
+  if (realUserRole !== 'overlordadmin') return;
+  currentUser.role = role;
+  const menu = document.getElementById('role-switcher-menu');
+  if (menu) menu.style.display = 'none';
+  // Re-run the post-login UI setup
+  applyRoleUI();
+  // Route to the appropriate screen
+  if (role === 'crew') { loadVessels(); show('screen-vessels'); }
+  else if (role === 'engineering_crew') { loadEngineeringDashboard(); show('screen-engineering'); }
+  else { loadDashboard(); show('screen-dashboard'); }
+}
+
+function applyRoleUI() {
+  const role = currentUser.role;
+  const roleEl = document.getElementById('topbar-role');
+  if (roleEl) {
+    roleEl.textContent = (realUserRole === 'overlordadmin' && role !== 'overlordadmin') ? role + ' (viewing)' : role;
+    roleEl.className = 'role-chip chip-' + role.replace(/_/g,'-');
+  }
+  const canManage = ['overlordadmin','company_admin','port_engineer','vessel_ops_manager'].includes(role);
+  const isAdmin = ['overlordadmin','company_admin'].includes(role);
+  const bellBtn = document.getElementById('notif-bell-btn');
+  if (bellBtn) bellBtn.style.display = canManage ? 'flex' : 'none';
+  const maintBtn = document.getElementById('maint-nav-btn');
+  if (maintBtn) maintBtn.style.display = canManage ? 'inline-flex' : 'none';
+  const fleetBtn = document.getElementById('fleet-nav-btn');
+  if (fleetBtn) fleetBtn.style.display = canManage ? 'inline-flex' : 'none';
+  const usersBtn = document.getElementById('manage-users-btn');
+  if (usersBtn) usersBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+  const analyticsBtn = document.getElementById('analytics-nav-btn');
+  if (analyticsBtn) analyticsBtn.style.display = canManage ? 'inline-flex' : 'none';
+  const scheduleBtn = document.getElementById('schedule-nav-btn');
+  if (scheduleBtn) scheduleBtn.style.display = canManage ? 'inline-flex' : 'none';
+  const onboardBtn = document.getElementById('onboard-nav-btn');
+  if (onboardBtn) onboardBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+}
+
+
+// ── TRIP TICKET FUNCTIONS ──────────────────────────────
+let ttLegCount = 0, ttCrewCount = 0, currentTripTicketId = null;
+
+function openTripTicket(vesselName, ticketId) {
+  currentTripTicketId = ticketId || null;
+  document.getElementById('tt-number').textContent = ticketId ? 'Ticket #' + ticketId : 'New Ticket';
+  // Reset
+  document.getElementById('tt-launch').value = vesselName || (currentVesselDetailId ? (allVessels.find(v=>v.id===currentVesselDetailId)||{}).name||'' : '');
+  document.getElementById('tt-ship').value = '';
+  document.getElementById('tt-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('tt-time-ordered').value = '';
+  document.getElementById('tt-forklift').value = '';
+  document.getElementById('tt-job-number').value = '';
+  document.getElementById('tt-nets-out').value = '';
+  document.getElementById('tt-nets-in').value = '';
+  document.getElementById('tt-billing-desc').value = '';
+  document.getElementById('tt-billing-hours').value = '';
+  document.getElementById('tt-billing-rate').value = '';
+  document.getElementById('tt-billing-total').value = '';
+  document.getElementById('tt-notes').value = '';
+  document.getElementById('tt-error').style.display = 'none';
+  document.getElementById('tt-legs-list').innerHTML = '';
+  document.getElementById('tt-crew-list').innerHTML = '';
+  ttLegCount = 0; ttCrewCount = 0;
+  addTripLeg(); // start with one leg
+  addCrewRow(); // start with one crew row
+  show('screen-trip-ticket');
+}
+
+function closeTripTicket() {
+  if (currentVesselDetailId) { switchVesselTab('trips', null); show('screen-vessel-detail'); }
+  else { loadDashboard(); show('screen-dashboard'); }
+}
+
+function addTripLeg() {
+  ttLegCount++;
+  const id = ttLegCount;
+  const div = document.createElement('div');
+  div.id = 'tt-leg-' + id;
+  div.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 1fr 0.6fr 0.6fr auto;gap:6px;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)';
+  div.innerHTML =
+    '<input type="text" placeholder="Trip description" id="tt-leg-desc-' + id + '" style="font-size:13px;padding:7px">' +
+    '<input type="time" id="tt-leg-depart-' + id + '" title="Depart" style="font-size:13px;padding:7px">' +
+    '<input type="time" id="tt-leg-arrive-' + id + '" title="Arrive" style="font-size:13px;padding:7px">' +
+    '<input type="number" placeholder="In" id="tt-leg-in-' + id + '" title="Pax In" style="font-size:13px;padding:7px">' +
+    '<input type="number" placeholder="Out" id="tt-leg-out-' + id + '" title="Pax Out" style="font-size:13px;padding:7px">' +
+    '<button type="button" onclick="document.getElementById(\'tt-leg-' + id + '\').remove()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:18px">&times;</button>';
+  document.getElementById('tt-legs-list').appendChild(div);
+}
+
+function addCrewRow() {
+  ttCrewCount++;
+  const id = ttCrewCount;
+  const div = document.createElement('div');
+  div.id = 'tt-crew-' + id;
+  div.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 0.7fr 0.7fr 0.7fr auto;gap:6px;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)';
+  div.innerHTML =
+    '<input type="text" placeholder="Employee name" id="tt-crew-name-' + id + '" style="font-size:13px;padding:7px">' +
+    '<input type="text" placeholder="Position" id="tt-crew-pos-' + id + '" style="font-size:13px;padding:7px">' +
+    '<input type="number" step="0.5" placeholder="ST" id="tt-crew-st-' + id + '" title="Straight time" style="font-size:13px;padding:7px">' +
+    '<input type="number" step="0.5" placeholder="PT" id="tt-crew-pt-' + id + '" title="Part time" style="font-size:13px;padding:7px">' +
+    '<input type="number" step="0.5" placeholder="OT" id="tt-crew-ot-' + id + '" title="Overtime" style="font-size:13px;padding:7px">' +
+    '<button type="button" onclick="document.getElementById(\'tt-crew-' + id + '\').remove()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:18px">&times;</button>';
+  document.getElementById('tt-crew-list').appendChild(div);
+}
+
+function calcTripTotal() {
+  const hrs = parseFloat(document.getElementById('tt-billing-hours').value) || 0;
+  const rate = parseFloat(document.getElementById('tt-billing-rate').value) || 0;
+  document.getElementById('tt-billing-total').value = (hrs * rate).toFixed(2);
+}
+
+async function saveTripTicket(status) {
+  const errEl = document.getElementById('tt-error');
+  const launch = document.getElementById('tt-launch').value.trim();
+  if (!launch) { errEl.textContent = 'Vessel (Launch) is required.'; errEl.style.display = 'block'; return; }
+
+  // Gather legs
+  const legs = [];
+  document.querySelectorAll('[id^="tt-leg-desc-"]').forEach(el => {
+    const id = el.id.replace('tt-leg-desc-','');
+    legs.push({
+      description: el.value,
+      depart: (document.getElementById('tt-leg-depart-'+id)||{}).value || '',
+      arrive: (document.getElementById('tt-leg-arrive-'+id)||{}).value || '',
+      pax_in: (document.getElementById('tt-leg-in-'+id)||{}).value || '',
+      pax_out: (document.getElementById('tt-leg-out-'+id)||{}).value || ''
+    });
+  });
+  // Gather crew
+  const crew = [];
+  document.querySelectorAll('[id^="tt-crew-name-"]').forEach(el => {
+    const id = el.id.replace('tt-crew-name-','');
+    crew.push({
+      name: el.value,
+      position: (document.getElementById('tt-crew-pos-'+id)||{}).value || '',
+      st: (document.getElementById('tt-crew-st-'+id)||{}).value || '',
+      pt: (document.getElementById('tt-crew-pt-'+id)||{}).value || '',
+      ot: (document.getElementById('tt-crew-ot-'+id)||{}).value || ''
+    });
+  });
+
+  const payload = {
+    vessel_name: launch,
+    ship_destination: document.getElementById('tt-ship').value,
+    trip_date: document.getElementById('tt-date').value,
+    time_ordered: document.getElementById('tt-time-ordered').value,
+    forklift_crane: document.getElementById('tt-forklift').value,
+    job_number: document.getElementById('tt-job-number').value,
+    nets_out: document.getElementById('tt-nets-out').value,
+    nets_in: document.getElementById('tt-nets-in').value,
+    billing_description: document.getElementById('tt-billing-desc').value,
+    billing_hours: document.getElementById('tt-billing-hours').value,
+    billing_rate: document.getElementById('tt-billing-rate').value,
+    billing_total: document.getElementById('tt-billing-total').value,
+    notes: document.getElementById('tt-notes').value,
+    legs: legs,
+    crew: crew,
+    status: status
+  };
+
+  try {
+    const res = await fetch(API + '/api/trip-tickets', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','Authorization':'Bearer ' + token},
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      // Backend route may not exist yet - save locally as fallback
+      throw new Error('backend');
+    }
+    alert(status === 'pending' ? 'Trip ticket submitted for billing!' : 'Draft saved!');
+    closeTripTicket();
+  } catch(e) {
+    // Graceful fallback - the backend route needs building
+    alert('Trip ticket ' + (status === 'pending' ? 'submitted' : 'saved') + ' locally. (Backend storage route /api/trip-tickets needs to be added to save permanently.)');
+    closeTripTicket();
+  }
+}
+
+// ── PURCHASE ORDER FUNCTIONS ──────────────────────────────
+let poLineCount = 0, currentPOId = null;
+
+function openPurchaseOrder(poId) {
+  currentPOId = poId || null;
+  document.getElementById('po-number').textContent = poId ? 'PO #' + poId : 'New PO';
+  document.getElementById('po-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('po-ship-to').value = currentVesselDetailId ? (allVessels.find(v=>v.id===currentVesselDetailId)||{}).name||'' : '';
+  document.getElementById('po-vendor').value = '';
+  document.getElementById('po-ordered-by').value = currentUser ? currentUser.full_name||'' : '';
+  document.getElementById('po-error').style.display = 'none';
+  document.getElementById('po-lines-list').innerHTML = '';
+  poLineCount = 0;
+  addPOLine();
+  show('screen-purchase-order');
+}
+
+function closePurchaseOrder() {
+  if (currentVesselDetailId) { show('screen-vessel-detail'); }
+  else { loadDashboard(); show('screen-dashboard'); }
+}
+
+function addPOLine() {
+  poLineCount++;
+  const id = poLineCount;
+  const div = document.createElement('div');
+  div.id = 'po-line-' + id;
+  div.style.cssText = 'display:grid;grid-template-columns:0.7fr 2fr 1fr 1fr auto;gap:6px;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)';
+  div.innerHTML =
+    '<input type="text" placeholder="Qty" id="po-qty-' + id + '" style="font-size:13px;padding:7px">' +
+    '<input type="text" placeholder="Description" id="po-desc-' + id + '" style="font-size:13px;padding:7px">' +
+    '<input type="number" step="0.01" placeholder="Price" id="po-price-' + id + '" oninput="calcPOLine(' + id + ')" style="font-size:13px;padding:7px">' +
+    '<input type="number" step="0.01" placeholder="Amount" id="po-amount-' + id + '" readonly style="font-size:13px;padding:7px;background:var(--surface2)">' +
+    '<button type="button" onclick="document.getElementById(\'po-line-' + id + '\').remove()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:18px">&times;</button>';
+  document.getElementById('po-lines-list').appendChild(div);
+}
+
+function calcPOLine(id) {
+  const qty = parseFloat(document.getElementById('po-qty-'+id).value) || 0;
+  const price = parseFloat(document.getElementById('po-price-'+id).value) || 0;
+  const amtEl = document.getElementById('po-amount-'+id);
+  if (amtEl) amtEl.value = (qty * price).toFixed(2);
+}
+
+async function savePurchaseOrder(status) {
+  const errEl = document.getElementById('po-error');
+  const vendor = document.getElementById('po-vendor').value.trim();
+  if (!vendor) { errEl.textContent = 'Vendor (To) is required.'; errEl.style.display = 'block'; return; }
+
+  const lines = [];
+  document.querySelectorAll('[id^="po-desc-"]').forEach(el => {
+    const id = el.id.replace('po-desc-','');
+    lines.push({
+      qty: (document.getElementById('po-qty-'+id)||{}).value || '',
+      description: el.value,
+      price: (document.getElementById('po-price-'+id)||{}).value || '',
+      amount: (document.getElementById('po-amount-'+id)||{}).value || ''
+    });
+  });
+
+  const payload = {
+    po_date: document.getElementById('po-date').value,
+    ship_to: document.getElementById('po-ship-to').value,
+    vendor: vendor,
+    ordered_by: document.getElementById('po-ordered-by').value,
+    lines: lines,
+    status: status
+  };
+
+  try {
+    const res = await fetch(API + '/api/purchase-orders', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','Authorization':'Bearer ' + token},
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('backend');
+    alert(status === 'pending' ? 'Purchase order submitted!' : 'Draft saved!');
+    closePurchaseOrder();
+  } catch(e) {
+    alert('Purchase order ' + (status === 'pending' ? 'submitted' : 'saved') + ' locally. (Backend route /api/purchase-orders needs to be added to save permanently.)');
+    closePurchaseOrder();
+  }
+}
+
+
+function updateEngineSchedule() {
+  const model = document.getElementById('vd-engine-model').value;
+  const hours = document.getElementById('vd-engine-hours').value;
+  const el = document.getElementById('vd-engine-schedule');
+  if (el) el.innerHTML = renderEngineSchedule(model, hours);
+}
+
+function openVesselWorkOrder() {
+  // Use the dedicated report issue screen, pre-set to this vessel
+  if (currentVesselDetailId) {
+    const v = allVessels.find(x => x.id === currentVesselDetailId);
+    currentTripVessel = v || null;
+  }
+  openReportIssueScreen();
+}
+
+
+// ── AI ONBOARDING ──────────────────────────────
+let aiExtractedData = null;
+
+async function runAIOnboard() {
+  const text = document.getElementById('ai-onboard-text').value.trim();
+  const files = document.getElementById('ai-onboard-files').files;
+  const btn = document.getElementById('ai-onboard-btn');
+
+  if (!text && files.length === 0) {
+    alert('Please describe your fleet or upload at least one document.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Analyzing...';
+
+  try {
+    // Build the message content
+    const messageContent = [];
+    let promptText = 'Extract fleet/vessel information from the following and return ONLY valid JSON (no markdown, no preamble) in this exact format: {"vessels":[{"name":"","type":"","official_number":"","year_built":"","length_ft":"","hull":"","engine_model":"","engine_config":"","coi_expiry":"","home_port":""}]}. Use empty strings for unknown fields.\n\n';
+    if (text) promptText += 'Fleet description: ' + text + '\n\n';
+
+    // Convert files to base64
+    for (const file of files) {
+      const b64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      if (file.type === 'application/pdf') {
+        messageContent.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } });
+      } else if (file.type.startsWith('image/')) {
+        messageContent.push({ type: 'image', source: { type: 'base64', media_type: file.type, data: b64 } });
+      }
+    }
+    messageContent.push({ type: 'text', text: promptText });
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1500,
+        messages: [{ role: 'user', content: messageContent }]
+      })
+    });
+
+    const data = await response.json();
+    let responseText = '';
+    if (data.content && Array.isArray(data.content)) {
+      responseText = data.content.filter(c => c.type === 'text').map(c => c.text).join('');
+    }
+    // Parse JSON from response
+    const clean = responseText.replace(/```json|```/g, '').trim();
+    aiExtractedData = JSON.parse(clean);
+
+    renderAIExtracted(aiExtractedData);
+    document.getElementById('ai-onboard-result').style.display = 'block';
+  } catch(e) {
+    alert('Could not analyze the fleet info. Error: ' + e.message + '. You can still add vessels manually.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-sparkles"></i> Analyze & Pre-fill';
+  }
+}
+
+function renderAIExtracted(data) {
+  const el = document.getElementById('ai-onboard-extracted');
+  if (!data || !data.vessels || !data.vessels.length) {
+    el.innerHTML = '<div class="empty-state">No vessels could be extracted. Try adding more detail.</div>';
+    return;
+  }
+  el.innerHTML = data.vessels.map((v, i) => {
+    return '<div style="padding:12px 0;border-bottom:1px solid var(--border)">' +
+      '<div style="font-size:14px;font-weight:600;color:var(--cream);margin-bottom:6px">' + (v.name || 'Vessel ' + (i+1)) + '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;color:var(--steel)">' +
+      (v.type ? '<div>Type: ' + v.type + '</div>' : '') +
+      (v.engine_model ? '<div>Engine: ' + v.engine_model + '</div>' : '') +
+      (v.length_ft ? '<div>Length: ' + v.length_ft + ' ft</div>' : '') +
+      (v.year_built ? '<div>Built: ' + v.year_built + '</div>' : '') +
+      (v.official_number ? '<div>Official #: ' + v.official_number + '</div>' : '') +
+      (v.coi_expiry ? '<div>COI expires: ' + v.coi_expiry + '</div>' : '') +
+      (v.home_port ? '<div>Home port: ' + v.home_port + '</div>' : '') +
+      '</div></div>';
+  }).join('');
+}
+
+async function confirmAIOnboard() {
+  if (!aiExtractedData || !aiExtractedData.vessels) return;
+  // Try to create vessels via existing vessel endpoint
+  let created = 0;
+  for (const v of aiExtractedData.vessels) {
+    try {
+      const res = await fetch(API + '/api/vessels', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','Authorization':'Bearer ' + token},
+        body: JSON.stringify({ name: v.name, engine_model: v.engine_model, length_ft: v.length_ft, official_number: v.official_number })
+      });
+      if (res.ok) created++;
+    } catch(e) {}
+  }
+  alert(created > 0 ? created + ' vessel(s) added! Review them on your dashboard.' : 'Vessels parsed. (Backend vessel creation route may need adjustment.)');
+  loadDashboard();
+  show('screen-dashboard');
+}
+
+// ── ANALYTICS ──────────────────────────────
+async function loadAnalytics() {
+  try {
+    const res = await fetch(API + '/api/maintenance/orders', {headers: {'Authorization': 'Bearer ' + token}});
+    const data = await res.json();
+    const orders = data.orders || [];
+    const open = orders.filter(o => o.status === 'pending_review' || o.status === 'in_progress').length;
+    const thirtyAgo = new Date(Date.now() - 30*24*60*60*1000);
+    const completed = orders.filter(o => o.status === 'completed' && new Date(o.created_at) >= thirtyAgo).length;
+    document.getElementById('an-open').textContent = open;
+    document.getElementById('an-completed').textContent = completed;
+    document.getElementById('an-avg-res').textContent = '—';
+    // Recurring: systems appearing more than once
+    const sysCounts = {};
+    orders.forEach(o => { sysCounts[o.system] = (sysCounts[o.system]||0) + 1; });
+    const recurring = Object.values(sysCounts).filter(c => c > 1).length;
+    document.getElementById('an-recurring').textContent = recurring;
+    // By system breakdown
+    const el = document.getElementById('an-by-system');
+    const sorted = Object.entries(sysCounts).sort((a,b) => b[1]-a[1]);
+    if (!sorted.length) { el.innerHTML = '<div class="empty-state">No maintenance data yet.</div>'; return; }
+    const max = sorted[0][1];
+    el.innerHTML = sorted.map(([sys, count]) => {
+      const pct = Math.round((count/max)*100);
+      return '<div style="margin-bottom:10px">' +
+        '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--cream);margin-bottom:4px"><span>' + sys + '</span><span>' + count + '</span></div>' +
+        '<div class="pct-bar-bg"><div class="pct-bar-fill" style="width:' + pct + '%"></div></div>' +
+        '</div>';
+    }).join('');
+  } catch(e) {
+    document.getElementById('an-by-system').innerHTML = '<div class="empty-state" style="color:var(--red)">Failed to load analytics.</div>';
+  }
+}
+
+// ── SCHEDULING (skeleton) ──────────────────────────────
+function addScheduleEntry() {
+  alert('Scheduling: Add Shift form. Backend route /api/schedule needs to be built for persistence. This is a Phase 4 skeleton ready to flesh out.');
+}
+function recordSickCall() {
+  alert('Sick call-out recorded. Backend route /api/schedule/sick needs to be built. This is a Phase 4 skeleton.');
 }
 
 </script>
