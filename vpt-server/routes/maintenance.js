@@ -7,6 +7,7 @@ const router = express.Router();
 router.use(requireAuth);
 
 const MANAGE_ROLES = ['overlordadmin','company_admin','port_engineer','vessel_ops_manager'];
+const ENG_READ_ROLES = ['overlordadmin','company_admin','port_engineer','vessel_ops_manager','engineering_crew'];
 
 // ── POST /api/maintenance/orders ─────────────────────────────
 router.post('/orders', async (req, res) => {
@@ -185,7 +186,7 @@ router.put('/orders/:id/approve', requireRole(MANAGE_ROLES), async (req, res) =>
 });
 
 // ── GET /api/maintenance/log ─────────────────────────────────
-router.get('/log', requireRole(MANAGE_ROLES), async (req, res) => {
+router.get('/log', requireRole(ENG_READ_ROLES), async (req, res) => {
   try {
     const { vessel_id, status } = req.query;
     let query = supabase

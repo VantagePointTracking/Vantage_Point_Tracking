@@ -930,54 +930,7 @@ select option{background:var(--surface2);color:var(--cream)}
   </div>
 </div>
 
-    <div class="form-group">
-      <label>Vessel</label>
-      <input type="text" id="mo-vessel" readonly style="color:var(--steel)">
-    </div>
-    <div class="form-group">
-      <label>System <span class="required-star">*</span></label>
-      <select id="mo-system">
-        <option value="">Select system...</option>
-        <option value="Main Engine">Main Engine</option>
-        <option value="Generator">Generator</option>
-        <option value="Fuel System">Fuel System</option>
-        <option value="Cooling System">Cooling System</option>
-        <option value="Hydraulics">Hydraulics</option>
-        <option value="Steering">Steering</option>
-        <option value="Electrical">Electrical</option>
-        <option value="Bilge System">Bilge System</option>
-        <option value="Fire Suppression">Fire Suppression</option>
-        <option value="Drive Shaft / Coupling">Drive Shaft / Coupling</option>
-        <option value="Navigation Equipment">Navigation Equipment</option>
-        <option value="Safety Equipment">Safety Equipment</option>
-        <option value="Hull / Deck">Hull / Deck</option>
-        <option value="Other">Other</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label>Component <span style="color:var(--steel);font-weight:400">(optional)</span></label>
-      <input type="text" id="mo-component" placeholder="e.g. injector, turbo, raw water pump">
-    </div>
-    <div class="form-group">
-      <label>Priority <span class="required-star">*</span></label>
-      <select id="mo-priority">
-        <option value="low">Low — monitor, not urgent</option>
-        <option value="medium" selected>Medium — needs attention soon</option>
-        <option value="high">High — immediate attention required</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label>Error codes <span style="color:var(--steel);font-weight:400">(optional)</span></label>
-      <input type="text" id="mo-codes" placeholder="e.g. E-421, SPN 110 FMI 3">
-    </div>
-    <div class="form-group">
-      <label>Description <span class="required-star">*</span></label>
-      <textarea id="mo-description" rows="4" placeholder="Describe what you observed, when it started, and any other relevant details"></textarea>
-    </div>
-    <div id="mo-error" class="error-msg"></div>
-    <button class="btn btn-primary" id="mo-submit-btn" onclick="submitMaintenanceOrder()">Submit maintenance order</button>
-  </div>
-</div>
+
 
 <div id="screen-maintenance" class="screen">
   <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 0 0.5rem">
@@ -1888,20 +1841,7 @@ document.addEventListener('click', e => {
 // MAINTENANCE ORDER (crew submission)
 // ═══════════════════════════════════════════════════════════════
 
-function openMaintenanceOrder() {
-  if (!currentVessel) { alert('Please select a vessel first.'); return; }
-  document.getElementById('mo-vessel').value = currentVessel.name;
-  document.getElementById('mo-system').value = '';
-  document.getElementById('mo-system-buttons') && renderSystemButtons('');
-  document.getElementById('mo-component').value = '';
-  document.getElementById('mo-priority').value = 'medium';
-  document.getElementById('mo-error-codes').value = '';
-  document.getElementById('mo-description').value = '';
-  document.getElementById('mo-error').style.display = 'none';
-  document.getElementById('mo-submit-btn').disabled = false;
-  document.getElementById('mo-submit-btn').textContent = 'Submit maintenance order';
-  show('screen-maintenance-order');
-}
+// openMaintenanceOrder is defined below near the modal — this stub intentionally left blank
 
 async function submitMaintenanceOrder() {
   const vessel_id = document.getElementById('mo-vessel-id').value;
