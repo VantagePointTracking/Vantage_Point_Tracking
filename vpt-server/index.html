@@ -930,15 +930,6 @@ select option{background:var(--surface2);color:var(--cream)}
   </div>
 </div>
 
-<div id="screen-maintenance-order" class="screen">
-  <div class="topbar">
-    <button class="back-btn" onclick="show('screen-checklist')"><i class="ti ti-arrow-left"></i></button>
-    <div class="topbar-title">Report an issue</div>
-  </div>
-  <div class="card">
-    <div style="font-size:13px;color:var(--steel);margin-bottom:1rem;padding:10px;background:var(--surface2);border-radius:8px;border-left:3px solid var(--gold)">
-      This will alert the port engineer and vessel ops manager for review.
-    </div>
     <div class="form-group">
       <label>Vessel</label>
       <input type="text" id="mo-vessel" readonly style="color:var(--steel)">
@@ -1162,11 +1153,14 @@ async function doLogin() {
     if (scheduleBtnL) scheduleBtnL.style.display = canManage ? 'inline-flex' : 'none';
     const onboardBtnL = document.getElementById('onboard-nav-btn');
     if (onboardBtnL) onboardBtnL.style.display = isAdmin ? 'inline-flex' : 'none';
-    if (isCrew) {
+if (role === 'crew') {
       const hr = new Date().getHours();
       document.getElementById('greeting').textContent = (hr<12?'Good morning':hr<17?'Good afternoon':'Good evening') + ', ' + (currentUser.full_name||'crew');
       loadVessels();
       show('screen-vessels');
+    } else if (role === 'engineering_crew') {
+      loadEngineeringDashboard();
+      show('screen-engineering');
     } else {
       document.getElementById('manage-users-btn').style.display = isAdmin ? 'inline-flex' : 'none';
       document.getElementById('submit-log-btn').style.display = canManage ? 'inline-flex' : 'none';
