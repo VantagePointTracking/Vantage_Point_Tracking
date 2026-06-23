@@ -1071,10 +1071,16 @@ const CHECKS = {
 };
 
 function show(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.screen').forEach(s => {
+    s.classList.remove('active');
+    s.style.display = 'none';
+  });
   const el = document.getElementById(id) || document.getElementById('screen-' + id);
-  if (el) el.classList.add('active');
-  window.scrollTo(0,0);
+  if (el) {
+    el.classList.add('active');
+    el.style.display = 'block';
+  }
+  window.scrollTo(0, 0);
 }
 
 function handleSuccessBack() {
