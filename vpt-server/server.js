@@ -10,6 +10,7 @@ const adminRoutes = require('./routes/admin');
 const maintenanceRoutes = require('./routes/maintenance');
 const fleetRoutes = require('./routes/fleet');
 const tripsRoutes = require('./routes/trips');
+const tripTicketsRoutes = require('./routes/trip-tickets');
 const aiRoutes = require('./routes/ai');
 
 const app = express();
@@ -38,6 +39,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/maintenance', maintenanceRoutes);
 app.use('/api/fleet', fleetRoutes);
 app.use('/api/trips', tripsRoutes);
+app.use('/api/trip-tickets', tripTicketsRoutes);
 app.use('/api/ai', aiRoutes);
 
 app.get(['/','/api', '/app', '/login'], (req, res) => {
@@ -49,3 +51,9 @@ app.use((err, req, res, next) => res.status(500).json({ error: err.message }));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+
+
+
+
+

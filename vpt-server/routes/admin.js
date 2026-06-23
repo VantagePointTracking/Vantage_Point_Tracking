@@ -1,15 +1,16 @@
+Admin · JS
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const supabase = require('../lib/supabase');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const router = express.Router();
- 
+
 router.use(requireAuth);
- 
+
 const ADMIN_ROLES = ['overlordadmin','company_admin'];
- 
+
 router.use(requireRole(ADMIN_ROLES));
- 
+
 // ── GET /api/admin/users ─────────────────────────────────────
 router.get('/users', async (req, res) => {
   const { data, error } = await supabase
@@ -17,19 +18,18 @@ router.get('/users', async (req, res) => {
     .select('id, full_name, email, role, active, created_at')
     .eq('company_id', req.user.company_id)
     .order('full_name');
- 
+
   if (error) return res.status(500).json({ error: 'Failed to fetch users' });
   res.json({ users: data });
 });
- 
+
 // ── POST /api/admin/users ────────────────────────────────────
 router.post('/users', async (req, res) => {
   const { full_name, email, password, role } = req.body;
   if (!full_name || !email || !password) {
     return res.status(400).json({ error: 'full_name, email, and password required' });
   }
-  const allowed_roles = ['company_admin','port_engineer','vessel_ops_manager','office','crew'];
-  if (role && !allowed_roles.includes(role)) {
+  const allowed_roles = ['company_admin','port_engineer','vessel_ops_manager','office','crew','engineering_crew'];
     return res.status(400).json({ error: 'Invalid role' });
   }
   try {
@@ -43,7 +43,7 @@ router.post('/users', async (req, res) => {
       })
       .select('id, full_name, email, role')
       .single();
- 
+
     if (error) {
       if (error.code === '23505') return res.status(400).json({ error: 'Email already in use' });
       throw error;
@@ -53,12 +53,11 @@ router.post('/users', async (req, res) => {
     res.status(500).json({ error: 'Failed to create user', detail: err.message });
   }
 });
- 
+
 // ── PUT /api/admin/users/:id/role ───────────────────────────
 router.put('/users/:id/role', async (req, res) => {
   const { role } = req.body;
-  const allowed_roles = ['company_admin','port_engineer','vessel_ops_manager','office','crew'];
-  if (!role || !allowed_roles.includes(role)) {
+  const allowed_roles = ['company_admin','port_engineer','vessel_ops_manager','office','crew','engineering_crew'];
     return res.status(400).json({ error: 'Invalid role' });
   }
   const { data, error } = await supabase
@@ -68,12 +67,12 @@ router.put('/users/:id/role', async (req, res) => {
     .eq('company_id', req.user.company_id)
     .select('id, full_name, email, role')
     .single();
- 
+
   if (error) return res.status(500).json({ error: 'Failed to update role' });
   if (!data) return res.status(404).json({ error: 'User not found' });
   res.json({ message: 'Role updated', user: data });
 });
- 
+
 // ── PUT /api/admin/users/:id/deactivate ──────────────────────
 router.put('/users/:id/deactivate', async (req, res) => {
   const { error } = await supabase
@@ -81,11 +80,11 @@ router.put('/users/:id/deactivate', async (req, res) => {
     .update({ active: false })
     .eq('id', req.params.id)
     .eq('company_id', req.user.company_id);
- 
+
   if (error) return res.status(500).json({ error: 'Failed to deactivate user' });
   res.json({ message: 'User deactivated' });
 });
- 
+
 // ── GET /api/admin/company ───────────────────────────────────
 router.get('/company', async (req, res) => {
   const { data, error } = await supabase
@@ -93,9 +92,15 @@ router.get('/company', async (req, res) => {
     .select('id, name, logo_url, subscription_tier, max_vessels, created_at')
     .eq('id', req.user.company_id)
     .single();
- 
+
   if (error) return res.status(500).json({ error: 'Failed to fetch company' });
   res.json({ company: data });
 });
- 
+
 module.exports = router;
+
+
+
+
+
+

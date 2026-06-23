@@ -192,7 +192,28 @@ router.put('/:id/close', async (req, res) => {
       .eq('id', req.params.id)
       .eq('company_id', req.user.company_id);
     if (error) throw error;
-    res.json({ message: 'Trip closed' });
+
+    // Auto-lock the trip ticket if one exists
+    const { data: ticket } = await supabase
+      .from('trip_tickets')
+      .select('id')
+      .eq('trip_id', req.params.id)
+      .eq('company_id', req.user.company_id)
+      .maybeSingle();
+
+    if (ticket) {
+      await supabase
+        .from('trip_tickets')
+        .update({
+          status: 'locked',
+          submitted_by: req.user.id,
+          submitted_by_name: req.user.full_name,
+          submitted_at: new Date().toISOString()
+        })
+        .eq('id', ticket.id);
+    }
+
+    res.json({ message: 'Trip closed and ticket locked' });
   } catch (err) {
     console.error('PUT close error:', err.message);
     res.status(500).json({ error: 'Failed to close trip', detail: err.message });

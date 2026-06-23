@@ -600,7 +600,7 @@ select option{background:var(--surface2);color:var(--cream)}
   <!-- Trips Tab -->
   <div id="vd-tab-trips" style="display:none">
     <div style="display:flex;gap:8px;margin-bottom:1rem">
-      <button type="button" onclick="openTripTicket()" class="btn btn-primary btn-sm" style="flex:1"><i class="ti ti-plus"></i> New Trip Ticket</button>
+      <button type="button" onclick="openTripTicketFromVessel()" class="btn btn-primary btn-sm" style="flex:1"><i class="ti ti-plus"></i> New Trip Ticket</button>
       <button type="button" onclick="openPurchaseOrder()" class="btn btn-sm" style="flex:1"><i class="ti ti-shopping-cart"></i> New Purchase Order</button>
     </div>
     <div class="card" id="vd-trips-list"><div class="empty-state">Loading trip tickets...</div></div>
@@ -664,29 +664,49 @@ select option{background:var(--surface2);color:var(--cream)}
 </div>
 
 
-<!-- Trip Ticket Screen (editable billing form) -->
+<!-- Trip Ticket Screen (live draft — tied to active trip) -->
 <div id="screen-trip-ticket" class="screen" style="display:none">
   <div class="topbar">
     <button class="back-btn" onclick="closeTripTicket()"><i class="ti ti-arrow-left"></i></button>
     <div>
       <div class="topbar-title">Trip Ticket</div>
-      <div style="font-size:12px;color:var(--steel)" id="tt-number">New</div>
+      <div style="font-size:12px;color:var(--steel)" id="tt-number">Draft</div>
     </div>
+    <div id="tt-autosave-indicator" style="font-size:11px;color:var(--steel);margin-left:auto;padding-right:4px"></div>
   </div>
   <div style="padding:1rem;max-width:700px;margin:0 auto">
+
+    <!-- Locked banner -->
+    <div id="tt-locked-banner" style="display:none;background:rgba(201,168,76,0.1);border:1px solid var(--gold);border-radius:8px;padding:10px 14px;margin-bottom:1rem;font-size:13px;color:var(--gold)">
+      <i class="ti ti-lock"></i> This ticket is locked — trip has been closed. Viewing read-only.
+    </div>
 
     <!-- Header info -->
     <div class="card" style="margin-bottom:1rem">
       <div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;margin-bottom:12px;text-transform:uppercase">Trip Info</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div class="form-group"><label>Launch (Vessel)</label><input type="text" id="tt-launch" placeholder="M/V ..."></div>
-        <div class="form-group"><label>Ship / Destination</label><input type="text" id="tt-ship" placeholder="Ship name"></div>
-        <div class="form-group"><label>Date</label><input type="date" id="tt-date"></div>
-        <div class="form-group"><label>Time Ordered</label><input type="time" id="tt-time-ordered"></div>
-        <div class="form-group"><label>Forklift / Crane</label><input type="text" id="tt-forklift" placeholder="optional"></div>
-        <div class="form-group"><label>Job Number</label><input type="text" id="tt-job-number" placeholder="optional"></div>
-        <div class="form-group"><label>Nets Out</label><input type="number" id="tt-nets-out" placeholder="0"></div>
-        <div class="form-group"><label>Nets In</label><input type="number" id="tt-nets-in" placeholder="0"></div>
+        <div class="form-group"><label>Launch (Vessel)</label><input type="text" id="tt-launch" placeholder="M/V ..." oninput="debouncedAutosave()"></div>
+        <div class="form-group"><label>Ship / Destination</label><input type="text" id="tt-ship" placeholder="Ship name or port" oninput="debouncedAutosave()"></div>
+        <div class="form-group"><label>Date</label><input type="date" id="tt-date" oninput="debouncedAutosave()"></div>
+        <div class="form-group"><label>Time Ordered</label><input type="time" id="tt-time-ordered" oninput="debouncedAutosave()"></div>
+        <div class="form-group"><label>Job Number</label><input type="text" id="tt-job-number" placeholder="optional" oninput="debouncedAutosave()"></div>
+        <div class="form-group"><label>Forklift / Crane</label><input type="text" id="tt-forklift" placeholder="optional" oninput="debouncedAutosave()"></div>
+        <div class="form-group"><label>Total Passengers</label><input type="number" id="tt-pax-total" placeholder="0" oninput="debouncedAutosave()"></div>
+        <div class="form-group"><label>Weather</label>
+          <select id="tt-weather" onchange="debouncedAutosave()" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px">
+            <option value="">Select...</option>
+            <option>Clear</option><option>Partly Cloudy</option><option>Overcast</option>
+            <option>Fog</option><option>Rain</option><option>Thunderstorm</option>
+          </select>
+        </div>
+        <div class="form-group" style="grid-column:span 2"><label>Sea State</label>
+          <select id="tt-sea-state" onchange="debouncedAutosave()" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px">
+            <option value="">Select...</option>
+            <option>Calm (0-1 ft)</option><option>Slight (1-2 ft)</option>
+            <option>Moderate (2-4 ft)</option><option>Rough (4-8 ft)</option>
+            <option>Very Rough (8+ ft)</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -696,37 +716,69 @@ select option{background:var(--surface2);color:var(--cream)}
         <div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;text-transform:uppercase">Trip Legs</div>
         <button type="button" onclick="addTripLeg()" class="btn btn-sm"><i class="ti ti-plus"></i> Add Leg</button>
       </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 0.7fr auto;gap:4px;margin-bottom:6px">
+        <span style="font-size:10px;color:var(--steel);font-weight:600">DESCRIPTION</span>
+        <span style="font-size:10px;color:var(--steel);font-weight:600">DEPART</span>
+        <span style="font-size:10px;color:var(--steel);font-weight:600">ARRIVE</span>
+        <span style="font-size:10px;color:var(--steel);font-weight:600">PAX</span>
+        <span></span>
+      </div>
       <div id="tt-legs-list"></div>
     </div>
 
-    <!-- Crew / payroll -->
+    <!-- Crew manifest -->
     <div class="card" style="margin-bottom:1rem">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;text-transform:uppercase">Crew Manifest</div>
         <button type="button" onclick="addCrewRow()" class="btn btn-sm"><i class="ti ti-plus"></i> Add Crew</button>
       </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 0.7fr 0.7fr 0.7fr auto;gap:4px;margin-bottom:6px">
+        <span style="font-size:10px;color:var(--steel);font-weight:600">NAME</span>
+        <span style="font-size:10px;color:var(--steel);font-weight:600">POSITION</span>
+        <span style="font-size:10px;color:var(--steel);font-weight:600">ST</span>
+        <span style="font-size:10px;color:var(--steel);font-weight:600">PT</span>
+        <span style="font-size:10px;color:var(--steel);font-weight:600">OT</span>
+        <span></span>
+      </div>
       <div id="tt-crew-list"></div>
+    </div>
+
+    <!-- Drills (USCG required) -->
+    <div class="card" style="margin-bottom:1rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;text-transform:uppercase">Safety Drills</div>
+          <div style="font-size:11px;color:var(--steel);margin-top:2px">USCG required — log any drills conducted this voyage</div>
+        </div>
+        <button type="button" onclick="addDrillRow()" class="btn btn-sm"><i class="ti ti-plus"></i> Log Drill</button>
+      </div>
+      <div id="tt-drills-list"></div>
+      <div id="tt-no-drills" style="font-size:13px;color:var(--steel);text-align:center;padding:12px 0">No drills logged this voyage</div>
     </div>
 
     <!-- Billing -->
     <div class="card" style="margin-bottom:1rem">
       <div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;margin-bottom:12px;text-transform:uppercase">Billing</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div class="form-group"><label>Billing Description</label><input type="text" id="tt-billing-desc"></div>
-        <div class="form-group"><label>Total Hours</label><input type="number" step="0.5" id="tt-billing-hours"></div>
-        <div class="form-group"><label>Billing Rate ($/hr)</label><input type="number" step="0.01" id="tt-billing-rate" oninput="calcTripTotal()"></div>
-        <div class="form-group"><label>Total ($)</label><input type="number" step="0.01" id="tt-billing-total" readonly style="background:var(--surface2)"></div>
+        <div class="form-group" style="grid-column:span 2"><label>Billing Description</label><input type="text" id="tt-billing-desc" oninput="debouncedAutosave()"></div>
+        <div class="form-group"><label>Total Hours</label><input type="number" step="0.5" id="tt-billing-hours" oninput="calcTripTotal()"></div>
+        <div class="form-group"><label>Rate ($/hr)</label><input type="number" step="0.01" id="tt-billing-rate" oninput="calcTripTotal()"></div>
+        <div class="form-group" style="grid-column:span 2"><label>Total ($)</label><input type="number" step="0.01" id="tt-billing-total" readonly style="background:var(--surface2)"></div>
       </div>
     </div>
 
     <!-- Notes -->
-    <div class="form-group" style="margin-bottom:1rem"><label>Notes</label><textarea id="tt-notes" rows="3" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-family:inherit"></textarea></div>
+    <div class="form-group" style="margin-bottom:1.5rem">
+      <label>Notes</label>
+      <textarea id="tt-notes" rows="3" oninput="debouncedAutosave()" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-family:inherit"></textarea>
+    </div>
 
     <div id="tt-error" style="display:none;color:var(--red);font-size:13px;margin-bottom:1rem;padding:10px;background:rgba(239,68,68,0.1);border-radius:6px"></div>
 
-    <div style="display:flex;gap:10px">
-      <button type="button" onclick="saveTripTicket('pending')" style="flex:1;padding:14px;background:var(--gold);color:#1a1a1a;font-weight:700;border:none;border-radius:8px;cursor:pointer">Submit for Billing</button>
-      <button type="button" onclick="saveTripTicket('draft')" style="padding:14px 20px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;cursor:pointer">Save Draft</button>
+    <div id="tt-action-btns" style="display:flex;gap:10px">
+      <button type="button" onclick="saveTripTicket()" style="flex:1;padding:14px;background:var(--gold);color:#1a1a1a;font-weight:700;border:none;border-radius:8px;cursor:pointer">
+        <i class="ti ti-device-floppy"></i> Save Ticket
+      </button>
     </div>
   </div>
 </div>
@@ -2545,6 +2597,7 @@ function openTripAction(vessel, trip) {
     body.innerHTML =
       '<div style="font-size:13px;color:var(--green);margin-bottom:1rem"><i class="ti ti-circle-check"></i> Trip active' + (trip.trip_number ? ' — Trip #' + trip.trip_number : '') + '</div>' +
       '<button class="btn btn-primary" onclick="closeTripAction();openUnderwayLog()"><i class="ti ti-gauge"></i> Add watch / readings</button>' +
+      '<button class="btn" onclick="closeTripAction();openTripTicket(\'' + trip.id + '\')" style="margin-top:8px;border-color:var(--gold);color:var(--gold)"><i class="ti ti-file-invoice"></i> Edit trip ticket</button>' +
       reportBtn +
       '<button class="btn" onclick="closeTripAction()" style="margin-top:8px">Cancel</button>';
   }
@@ -3305,143 +3358,242 @@ function applyRoleUI() {
 
 
 // ── TRIP TICKET FUNCTIONS ──────────────────────────────
-let ttLegCount = 0, ttCrewCount = 0, currentTripTicketId = null;
+let ttLegCount = 0, ttCrewCount = 0, ttDrillCount = 0;
+let currentTripTicketId = null, currentTripTicketTripId = null;
+let ttAutosaveTimer = null, ttIsLocked = false;
 
-function openTripTicket(vesselName, ticketId) {
-  currentTripTicketId = ticketId || null;
-  document.getElementById('tt-number').textContent = ticketId ? 'Ticket #' + ticketId : 'New Ticket';
-  // Reset
-  document.getElementById('tt-launch').value = vesselName || (currentVesselDetailId ? (allVessels.find(v=>v.id===currentVesselDetailId)||{}).name||'' : '');
-  document.getElementById('tt-ship').value = '';
-  document.getElementById('tt-date').value = new Date().toISOString().split('T')[0];
-  document.getElementById('tt-time-ordered').value = '';
-  document.getElementById('tt-forklift').value = '';
-  document.getElementById('tt-job-number').value = '';
-  document.getElementById('tt-nets-out').value = '';
-  document.getElementById('tt-nets-in').value = '';
-  document.getElementById('tt-billing-desc').value = '';
-  document.getElementById('tt-billing-hours').value = '';
-  document.getElementById('tt-billing-rate').value = '';
-  document.getElementById('tt-billing-total').value = '';
-  document.getElementById('tt-notes').value = '';
-  document.getElementById('tt-error').style.display = 'none';
+async function openTripTicket(tripId) {
+  currentTripTicketTripId = tripId;
+  show('screen-trip-ticket');
+  document.getElementById('tt-number').textContent = 'Loading...';
+  document.getElementById('tt-locked-banner').style.display = 'none';
+  document.getElementById('tt-action-btns').style.display = 'flex';
   document.getElementById('tt-legs-list').innerHTML = '';
   document.getElementById('tt-crew-list').innerHTML = '';
-  ttLegCount = 0; ttCrewCount = 0;
-  addTripLeg(); // start with one leg
-  addCrewRow(); // start with one crew row
-  show('screen-trip-ticket');
+  document.getElementById('tt-drills-list').innerHTML = '';
+  document.getElementById('tt-no-drills').style.display = 'block';
+  ttLegCount = 0; ttCrewCount = 0; ttDrillCount = 0;
+
+  try {
+    const res = await fetch(API + '/api/trip-tickets/by-trip/' + tripId, {
+      headers: {'Authorization': 'Bearer ' + token}
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load ticket');
+
+    const t = data.ticket;
+    const trip = data.trip;
+    currentTripTicketId = t.id;
+    ttIsLocked = t.status === 'locked';
+
+    document.getElementById('tt-number').textContent =
+      t.ticket_number ? 'Ticket #' + t.ticket_number : (ttIsLocked ? 'Locked — Trip Closed' : 'Live Draft');
+    document.getElementById('tt-launch').value = trip.vessel ? trip.vessel.name : '';
+    document.getElementById('tt-ship').value = t.destination || '';
+    document.getElementById('tt-date').value = t.date || new Date().toISOString().split('T')[0];
+    document.getElementById('tt-time-ordered').value = t.time_ordered || '';
+    document.getElementById('tt-job-number').value = t.job_number || '';
+    document.getElementById('tt-forklift').value = t.forklift ? 'Yes' : '';
+    document.getElementById('tt-pax-total').value = t.pax_total || '';
+    document.getElementById('tt-weather').value = t.weather || '';
+    document.getElementById('tt-sea-state').value = t.sea_state || '';
+    document.getElementById('tt-billing-desc').value = t.billing_description || '';
+    document.getElementById('tt-billing-hours').value = t.billing_hours || '';
+    document.getElementById('tt-billing-rate').value = t.billing_rate || '';
+    document.getElementById('tt-billing-total').value = t.billing_total || '';
+    document.getElementById('tt-notes').value = t.notes || '';
+
+    // Populate legs
+    const legs = t.legs || [];
+    if (legs.length === 0) addTripLeg();
+    else legs.forEach(leg => addTripLeg(leg));
+
+    // Populate crew
+    const crew = t.crew || [];
+    if (crew.length === 0) addCrewRow();
+    else crew.forEach(c => addCrewRow(c));
+
+    // Populate drills
+    const drills = t.drills || [];
+    drills.forEach(d => addDrillRow(d));
+
+    // Lock UI if trip is closed
+    if (ttIsLocked) {
+      document.getElementById('tt-locked-banner').style.display = 'block';
+      document.getElementById('tt-action-btns').style.display = 'none';
+      document.querySelectorAll('#screen-trip-ticket input, #screen-trip-ticket select, #screen-trip-ticket textarea')
+        .forEach(el => el.setAttribute('disabled', true));
+    }
+  } catch(e) {
+    document.getElementById('tt-number').textContent = 'Error';
+    document.getElementById('tt-error').textContent = e.message;
+    document.getElementById('tt-error').style.display = 'block';
+  }
+}
+
+function debouncedAutosave() {
+  if (ttIsLocked || !currentTripTicketId) return;
+  clearTimeout(ttAutosaveTimer);
+  document.getElementById('tt-autosave-indicator').textContent = 'Unsaved...';
+  ttAutosaveTimer = setTimeout(saveTripTicket, 1500);
+}
+
+async function saveTripTicket() {
+  if (ttIsLocked || !currentTripTicketId) return;
+  const indicator = document.getElementById('tt-autosave-indicator');
+  indicator.textContent = 'Saving...';
+
+  const legs = [];
+  document.querySelectorAll('[id^="tt-leg-desc-"]').forEach(el => {
+    const id = el.id.replace('tt-leg-desc-','');
+    legs.push({
+      description: el.value,
+      depart: (document.getElementById('tt-leg-depart-'+id)||{}).value||'',
+      arrive: (document.getElementById('tt-leg-arrive-'+id)||{}).value||'',
+      pax_count: parseInt((document.getElementById('tt-leg-pax-'+id)||{}).value)||0
+    });
+  });
+
+  const crew = [];
+  document.querySelectorAll('[id^="tt-crew-name-"]').forEach(el => {
+    const id = el.id.replace('tt-crew-name-','');
+    crew.push({
+      name: el.value,
+      position: (document.getElementById('tt-crew-pos-'+id)||{}).value||'',
+      st_hours: parseFloat((document.getElementById('tt-crew-st-'+id)||{}).value)||0,
+      pt_hours: parseFloat((document.getElementById('tt-crew-pt-'+id)||{}).value)||0,
+      ot_hours: parseFloat((document.getElementById('tt-crew-ot-'+id)||{}).value)||0
+    });
+  });
+
+  const drills = [];
+  document.querySelectorAll('[id^="tt-drill-type-"]').forEach(el => {
+    const id = el.id.replace('tt-drill-type-','');
+    drills.push({
+      type: el.value,
+      time_conducted: (document.getElementById('tt-drill-time-'+id)||{}).value||'',
+      conducted_by: (document.getElementById('tt-drill-by-'+id)||{}).value||'',
+      notes: (document.getElementById('tt-drill-notes-'+id)||{}).value||''
+    });
+  });
+
+  const payload = {
+    destination: document.getElementById('tt-ship').value,
+    date: document.getElementById('tt-date').value,
+    time_ordered: document.getElementById('tt-time-ordered').value,
+    job_number: document.getElementById('tt-job-number').value,
+    forklift: document.getElementById('tt-forklift').value.toLowerCase() === 'yes',
+    pax_total: parseInt(document.getElementById('tt-pax-total').value)||0,
+    weather: document.getElementById('tt-weather').value,
+    sea_state: document.getElementById('tt-sea-state').value,
+    billing_description: document.getElementById('tt-billing-desc').value,
+    billing_hours: parseFloat(document.getElementById('tt-billing-hours').value)||null,
+    billing_rate: parseFloat(document.getElementById('tt-billing-rate').value)||null,
+    billing_total: parseFloat(document.getElementById('tt-billing-total').value)||null,
+    notes: document.getElementById('tt-notes').value,
+    legs, crew, drills
+  };
+
+  try {
+    const res = await fetch(API + '/api/trip-tickets/' + currentTripTicketId, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('Save failed');
+    const now = new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+    indicator.textContent = '✓ Saved ' + now;
+  } catch(e) {
+    indicator.textContent = '⚠ Save failed';
+    indicator.style.color = 'var(--red)';
+  }
 }
 
 function closeTripTicket() {
+  clearTimeout(ttAutosaveTimer);
   if (currentVesselDetailId) { switchVesselTab('trips', null); show('screen-vessel-detail'); }
   else { loadDashboard(); show('screen-dashboard'); }
 }
 
-function addTripLeg() {
+async function openTripTicketFromVessel() {
+  if (!currentVesselDetailId) { alert('No vessel selected.'); return; }
+  try {
+    const res = await fetch(API + '/api/trips/active/' + currentVesselDetailId, {
+      headers: {'Authorization': 'Bearer ' + token}
+    });
+    const data = await res.json();
+    if (data.trip) {
+      openTripTicket(data.trip.id);
+    } else {
+      alert('No active trip found for this vessel. Start a trip first from the vessel card.');
+    }
+  } catch(e) {
+    alert('Could not load active trip.');
+  }
+}
+
+function addTripLeg(data) {
   ttLegCount++;
   const id = ttLegCount;
   const div = document.createElement('div');
   div.id = 'tt-leg-' + id;
-  div.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 1fr 0.6fr 0.6fr auto;gap:6px;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)';
+  div.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 1fr 0.7fr auto;gap:6px;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)';
   div.innerHTML =
-    '<input type="text" placeholder="Trip description" id="tt-leg-desc-' + id + '" style="font-size:13px;padding:7px">' +
-    '<input type="time" id="tt-leg-depart-' + id + '" title="Depart" style="font-size:13px;padding:7px">' +
-    '<input type="time" id="tt-leg-arrive-' + id + '" title="Arrive" style="font-size:13px;padding:7px">' +
-    '<input type="number" placeholder="In" id="tt-leg-in-' + id + '" title="Pax In" style="font-size:13px;padding:7px">' +
-    '<input type="number" placeholder="Out" id="tt-leg-out-' + id + '" title="Pax Out" style="font-size:13px;padding:7px">' +
-    '<button type="button" onclick="document.getElementById(\'tt-leg-' + id + '\').remove()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:18px">&times;</button>';
+    '<input type="text" placeholder="Description / destination" id="tt-leg-desc-'+id+'" value="'+(data&&data.description||'')+'" oninput="debouncedAutosave()" style="font-size:13px;padding:7px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:6px">' +
+    '<input type="time" id="tt-leg-depart-'+id+'" title="Depart" value="'+(data&&data.depart||'')+'" oninput="debouncedAutosave()" style="font-size:13px;padding:7px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:6px">' +
+    '<input type="time" id="tt-leg-arrive-'+id+'" title="Arrive" value="'+(data&&data.arrive||'')+'" oninput="debouncedAutosave()" style="font-size:13px;padding:7px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:6px">' +
+    '<input type="number" placeholder="Pax" id="tt-leg-pax-'+id+'" title="Passengers" value="'+(data&&data.pax_count||'')+'" oninput="debouncedAutosave()" style="font-size:13px;padding:7px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:6px">' +
+    '<button type="button" onclick="document.getElementById(\'tt-leg-'+id+'\').remove();debouncedAutosave()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:18px;padding:4px">&times;</button>';
   document.getElementById('tt-legs-list').appendChild(div);
 }
 
-function addCrewRow() {
+function addCrewRow(data) {
   ttCrewCount++;
   const id = ttCrewCount;
   const div = document.createElement('div');
   div.id = 'tt-crew-' + id;
   div.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 0.7fr 0.7fr 0.7fr auto;gap:6px;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)';
   div.innerHTML =
-    '<input type="text" placeholder="Employee name" id="tt-crew-name-' + id + '" style="font-size:13px;padding:7px">' +
-    '<input type="text" placeholder="Position" id="tt-crew-pos-' + id + '" style="font-size:13px;padding:7px">' +
-    '<input type="number" step="0.5" placeholder="ST" id="tt-crew-st-' + id + '" title="Straight time" style="font-size:13px;padding:7px">' +
-    '<input type="number" step="0.5" placeholder="PT" id="tt-crew-pt-' + id + '" title="Part time" style="font-size:13px;padding:7px">' +
-    '<input type="number" step="0.5" placeholder="OT" id="tt-crew-ot-' + id + '" title="Overtime" style="font-size:13px;padding:7px">' +
-    '<button type="button" onclick="document.getElementById(\'tt-crew-' + id + '\').remove()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:18px">&times;</button>';
+    '<input type="text" placeholder="Employee name" id="tt-crew-name-'+id+'" value="'+(data&&data.name||'')+'" oninput="debouncedAutosave()" style="font-size:13px;padding:7px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:6px">' +
+    '<input type="text" placeholder="Position" id="tt-crew-pos-'+id+'" value="'+(data&&data.position||'')+'" oninput="debouncedAutosave()" style="font-size:13px;padding:7px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:6px">' +
+    '<input type="number" step="0.5" placeholder="ST" id="tt-crew-st-'+id+'" title="Straight time" value="'+(data&&data.st_hours||'')+'" oninput="debouncedAutosave()" style="font-size:13px;padding:7px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:6px">' +
+    '<input type="number" step="0.5" placeholder="PT" id="tt-crew-pt-'+id+'" title="Premium time" value="'+(data&&data.pt_hours||'')+'" oninput="debouncedAutosave()" style="font-size:13px;padding:7px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:6px">' +
+    '<input type="number" step="0.5" placeholder="OT" id="tt-crew-ot-'+id+'" title="Overtime" value="'+(data&&data.ot_hours||'')+'" oninput="debouncedAutosave()" style="font-size:13px;padding:7px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:6px">' +
+    '<button type="button" onclick="document.getElementById(\'tt-crew-'+id+'\').remove();debouncedAutosave()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:18px;padding:4px">&times;</button>';
   document.getElementById('tt-crew-list').appendChild(div);
 }
 
-function calcTripTotal() {
-  const hrs = parseFloat(document.getElementById('tt-billing-hours').value) || 0;
-  const rate = parseFloat(document.getElementById('tt-billing-rate').value) || 0;
-  document.getElementById('tt-billing-total').value = (hrs * rate).toFixed(2);
+function addDrillRow(data) {
+  ttDrillCount++;
+  const id = ttDrillCount;
+  document.getElementById('tt-no-drills').style.display = 'none';
+  const div = document.createElement('div');
+  div.id = 'tt-drill-' + id;
+  div.style.cssText = 'background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px';
+  div.innerHTML =
+    '<div style="display:grid;grid-template-columns:1.5fr 1fr 1fr auto;gap:6px;align-items:center">' +
+    '<select id="tt-drill-type-'+id+'" onchange="debouncedAutosave()" style="font-size:13px;padding:7px;background:var(--surface);color:var(--cream);border:1px solid var(--border);border-radius:6px">' +
+    '<option value="">Drill type...</option>' +
+    '<option '+(data&&data.type==='Fire Drill'?'selected':'')+'>Fire Drill</option>' +
+    '<option '+(data&&data.type==='Man Overboard'?'selected':'')+'>Man Overboard</option>' +
+    '<option '+(data&&data.type==='Abandon Ship'?'selected':'')+'>Abandon Ship</option>' +
+    '<option '+(data&&data.type==='Emergency Steering'?'selected':'')+'>Emergency Steering</option>' +
+    '<option '+(data&&data.type==='Flooding/Damage Control'?'selected':'')+'>Flooding/Damage Control</option>' +
+    '<option '+(data&&data.type==='Other'?'selected':'')+'>Other</option>' +
+    '</select>' +
+    '<input type="time" id="tt-drill-time-'+id+'" title="Time conducted" value="'+(data&&data.time_conducted||'')+'" oninput="debouncedAutosave()" style="font-size:13px;padding:7px;background:var(--surface);color:var(--cream);border:1px solid var(--border);border-radius:6px">' +
+    '<input type="text" id="tt-drill-by-'+id+'" placeholder="Conducted by" value="'+(data&&data.conducted_by||'')+'" oninput="debouncedAutosave()" style="font-size:13px;padding:7px;background:var(--surface);color:var(--cream);border:1px solid var(--border);border-radius:6px">' +
+    '<button type="button" onclick="document.getElementById(\'tt-drill-'+id+'\').remove();debouncedAutosave();if(!document.querySelectorAll(\'[id^=tt-drill-type-]\').length)document.getElementById(\'tt-no-drills\').style.display=\'block\'" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:18px;padding:4px">&times;</button>' +
+    '</div>' +
+    '<input type="text" id="tt-drill-notes-'+id+'" placeholder="Notes (optional)" value="'+(data&&data.notes||'')+'" oninput="debouncedAutosave()" style="margin-top:6px;width:100%;font-size:12px;padding:6px;background:var(--surface);color:var(--cream);border:1px solid var(--border);border-radius:6px;box-sizing:border-box">';
+  document.getElementById('tt-drills-list').appendChild(div);
 }
 
-async function saveTripTicket(status) {
-  const errEl = document.getElementById('tt-error');
-  const launch = document.getElementById('tt-launch').value.trim();
-  if (!launch) { errEl.textContent = 'Vessel (Launch) is required.'; errEl.style.display = 'block'; return; }
-
-  // Gather legs
-  const legs = [];
-  document.querySelectorAll('[id^="tt-leg-desc-"]').forEach(el => {
-    const id = el.id.replace('tt-leg-desc-','');
-    legs.push({
-      description: el.value,
-      depart: (document.getElementById('tt-leg-depart-'+id)||{}).value || '',
-      arrive: (document.getElementById('tt-leg-arrive-'+id)||{}).value || '',
-      pax_in: (document.getElementById('tt-leg-in-'+id)||{}).value || '',
-      pax_out: (document.getElementById('tt-leg-out-'+id)||{}).value || ''
-    });
-  });
-  // Gather crew
-  const crew = [];
-  document.querySelectorAll('[id^="tt-crew-name-"]').forEach(el => {
-    const id = el.id.replace('tt-crew-name-','');
-    crew.push({
-      name: el.value,
-      position: (document.getElementById('tt-crew-pos-'+id)||{}).value || '',
-      st: (document.getElementById('tt-crew-st-'+id)||{}).value || '',
-      pt: (document.getElementById('tt-crew-pt-'+id)||{}).value || '',
-      ot: (document.getElementById('tt-crew-ot-'+id)||{}).value || ''
-    });
-  });
-
-  const payload = {
-    vessel_name: launch,
-    ship_destination: document.getElementById('tt-ship').value,
-    trip_date: document.getElementById('tt-date').value,
-    time_ordered: document.getElementById('tt-time-ordered').value,
-    forklift_crane: document.getElementById('tt-forklift').value,
-    job_number: document.getElementById('tt-job-number').value,
-    nets_out: document.getElementById('tt-nets-out').value,
-    nets_in: document.getElementById('tt-nets-in').value,
-    billing_description: document.getElementById('tt-billing-desc').value,
-    billing_hours: document.getElementById('tt-billing-hours').value,
-    billing_rate: document.getElementById('tt-billing-rate').value,
-    billing_total: document.getElementById('tt-billing-total').value,
-    notes: document.getElementById('tt-notes').value,
-    legs: legs,
-    crew: crew,
-    status: status
-  };
-
-  try {
-    const res = await fetch(API + '/api/trip-tickets', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json','Authorization':'Bearer ' + token},
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) {
-      // Backend route may not exist yet - save locally as fallback
-      throw new Error('backend');
-    }
-    alert(status === 'pending' ? 'Trip ticket submitted for billing!' : 'Draft saved!');
-    closeTripTicket();
-  } catch(e) {
-    // Graceful fallback - the backend route needs building
-    alert('Trip ticket ' + (status === 'pending' ? 'submitted' : 'saved') + ' locally. (Backend storage route /api/trip-tickets needs to be added to save permanently.)');
-    closeTripTicket();
-  }
+function calcTripTotal() {
+  const hrs = parseFloat(document.getElementById('tt-billing-hours').value)||0;
+  const rate = parseFloat(document.getElementById('tt-billing-rate').value)||0;
+  document.getElementById('tt-billing-total').value = (hrs * rate).toFixed(2);
+  debouncedAutosave();
 }
 
 // ── PURCHASE ORDER FUNCTIONS ──────────────────────────────
