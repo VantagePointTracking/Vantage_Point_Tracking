@@ -1,0 +1,88 @@
+const express = require('express');
+const { requireAuth } = require('../middleware/auth');
+const router = express.Router();
+
+router.use(requireAuth);
+
+// ── POST /api/ai/analyze ─────────────────────────────────────
+// Proxy to either Anthropic or Google Gemini depending on key format.
+// AIza... = Google Gemini (free tier)
+// sk-ant- = Anthropic (paid)
+// Falls back to server ANTHROPIC_API_KEY if no user key provided.
+router.post('/analyze', async (req, res) => {
+  const { userApiKey, model, max_tokens, messages } = req.body;
+  const apiKey = userApiKey || process.env.ANTHROPIC_API_KEY;
+
+  if (!apiKey) {
+    return res.status(500).json({
+      error: 'No API key set. Enter a free Google Gemini key from aistudio.google.com in the AI Onboard screen.'
+    });
+  }
+
+  try {
+    // ── Google Gemini (free tier) ───────────────────────────
+    if (apiKey.startsWith('AIza')) {
+      // Convert Anthropic message format → Gemini format
+      const parts = [];
+      for (const msg of messages) {
+        const content = Array.isArray(msg.content) ? msg.content : [{ type: 'text', text: msg.content }];
+        for (const block of content) {
+          if (block.type === 'text') {
+            parts.push({ text: block.text });
+          } else if (block.type === 'image') {
+            parts.push({ inline_data: { mime_type: block.source.media_type, data: block.source.data } });
+          } else if (block.type === 'document') {
+            parts.push({ inline_data: { mime_type: block.source.media_type, data: block.source.data } });
+          }
+        }
+      }
+
+      const geminiRes = await fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + apiKey,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts }] })
+        }
+      );
+
+      const geminiData = await geminiRes.json();
+
+      if (!geminiRes.ok) {
+        const msg = geminiData.error?.message || 'Gemini API error';
+        return res.status(geminiRes.status).json({ error: msg });
+      }
+
+      // Convert Gemini response → Anthropic-compatible format for the frontend
+      const text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      return res.json({ content: [{ type: 'text', text }] });
+    }
+
+    // ── Anthropic (paid) ────────────────────────────────────
+    if (!apiKey.startsWith('sk-ant-') && !apiKey.startsWith('sk-')) {
+      return res.status(400).json({ error: 'Unrecognized API key format. Use a Google Gemini key (AIza...) or Anthropic key (sk-ant-...).' });
+    }
+
+    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({ model, max_tokens, messages })
+    });
+
+    const anthropicData = await anthropicRes.json();
+    if (anthropicRes.status === 401) {
+      return res.status(401).json({ error: 'Invalid Anthropic API key.' });
+    }
+    return res.status(anthropicRes.status).json(anthropicData);
+
+  } catch (err) {
+    console.error('AI proxy error:', err.message);
+    res.status(500).json({ error: 'AI request failed', detail: err.message });
+  }
+});
+
+module.exports = router;

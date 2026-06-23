@@ -780,6 +780,31 @@ select option{background:var(--surface2);color:var(--cream)}
     </div>
   </div>
   <div style="padding:1rem;max-width:700px;margin:0 auto">
+
+    <!-- BYOK API Key -->
+    <div class="card" style="margin-bottom:1rem;border-color:var(--gold)44">
+      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleApiKeySection()">
+        <div style="font-size:12px;font-weight:600;color:var(--gold);text-transform:uppercase;letter-spacing:0.5px">
+          <i class="ti ti-key"></i> Your Anthropic API Key
+        </div>
+        <span id="api-key-toggle-icon" style="color:var(--steel);font-size:12px">▼ expand</span>
+      </div>
+      <div id="api-key-section" style="display:none;margin-top:12px">
+        <div style="font-size:13px;color:var(--steel);margin-bottom:10px;line-height:1.5">
+          <strong style="color:var(--green)">Free option:</strong> Get a free Google Gemini key at
+          <a href="https://aistudio.google.com" target="_blank" style="color:var(--gold)">aistudio.google.com</a>
+          → "Get API key" — no credit card needed, just a Google account.<br>
+          <span style="margin-top:4px;display:block">Paste your key below. It stays in this browser session only — never saved to our servers.</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="password" id="ai-user-api-key" placeholder="AIza... (Gemini) or sk-ant-... (Anthropic)" oninput="saveApiKeyToSession()"
+            style="flex:1;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:monospace">
+          <button type="button" onclick="clearApiKey()" style="padding:10px 14px;background:transparent;color:var(--steel);border:1px solid var(--border);border-radius:8px;font-size:12px;cursor:pointer">Clear</button>
+        </div>
+        <div id="api-key-status" style="font-size:11px;margin-top:6px;color:var(--steel)"></div>
+      </div>
+    </div>
+
     <div class="card" style="margin-bottom:1rem">
       <div style="font-size:13px;color:var(--cream);line-height:1.6;margin-bottom:1rem">
         Tell me about your fleet in plain language, or upload your vessel documents (COI, registration, insurance). I'll read them and pre-fill your vessel profiles, certificates, and maintenance schedules automatically.
@@ -3080,6 +3105,14 @@ async function loadEngineeringDashboard() {
   const greeting = hr<12?'Good morning':hr<17?'Good afternoon':'Good evening';
   const greetEl = document.getElementById('eng-greeting');
   if (greetEl) greetEl.textContent = greeting + ', ' + (currentUser ? currentUser.full_name || 'Engineer' : 'Engineer');
+  // Load vessels so Report Issue vessel dropdown works
+  if (!allVessels || allVessels.length === 0) {
+    try {
+      const vRes = await fetch(API + '/api/vessels', {headers: {'Authorization': 'Bearer ' + token}});
+      const vData = await vRes.json();
+      allVessels = vData.vessels || [];
+    } catch(e) { console.warn('Could not load vessels for eng dashboard'); }
+  }
   switchEngTab('assigned', document.querySelector('#screen-engineering .nav-tab'));
 }
 
@@ -3100,46 +3133,48 @@ async function loadEngOrders(type) {
   if (!el) return;
   el.innerHTML = '<div class="empty-state"><span class="spinner spinner-dark"></span></div>';
   try {
-    const res = await fetch(API + '/api/maintenance/orders', {headers: {'Authorization': 'Bearer ' + token}});
-    const data = await res.json();
-    let orders = data.orders || [];
-    const myId = currentUser ? currentUser.id : null;
-    if (type === 'assigned') orders = orders.filter(o => o.assigned_to === myId && o.status === 'in_progress');
-    else if (type === 'open') orders = orders.filter(o => o.status === 'pending_review');
-    else if (type === 'completed') orders = orders.filter(o => o.status === 'completed' && o.reviewed_by === myId);
+    let orders = [];
+    if (type === 'open') {
+      // Pending review orders — any engineer can see and claim
+      const res = await fetch(API + '/api/maintenance/orders', {headers: {'Authorization': 'Bearer ' + token}});
+      const data = await res.json();
+      orders = (data.orders || []).filter(o => o.status === 'pending_review');
+    } else {
+      // Assigned (in_progress) and Completed come from maintenance log
+      const statusParam = type === 'assigned' ? 'in_progress' : 'complete';
+      const res = await fetch(API + '/api/maintenance/log?status=' + statusParam, {headers: {'Authorization': 'Bearer ' + token}});
+      const data = await res.json();
+      orders = data.entries || [];
+    }
 
     if (!orders.length) {
-      const msgs = { assigned: 'No orders assigned to you.', open: 'No open work orders.', completed: 'No completed orders yet.' };
+      const msgs = { assigned: 'No work orders in progress.', open: 'No pending issues to review.', completed: 'No completed work orders yet.' };
       el.innerHTML = '<div class="empty-state">' + msgs[type] + '</div>';
       return;
     }
 
-    const statusColors = { pending_review: 'var(--amber)', in_progress: 'var(--gold)', completed: 'var(--green)' };
     const priorityColors = { high: 'var(--red)', medium: 'var(--amber)', low: 'var(--steel)' };
 
     el.innerHTML = orders.map(o => {
-      const sc = statusColors[o.status] || 'var(--steel)';
       const pc = priorityColors[o.priority] || 'var(--steel)';
       const date = new Date(o.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
       const vessel = allVessels.find(v => v.id === o.vessel_id);
-      const vesselName = vessel ? vessel.name : 'Unknown vessel';
-      const actionBtn = type === 'open' ?
-        '<button type="button" onclick="claimOrder(\'' + o.id + '\')" style="margin-top:8px;padding:6px 14px;font-size:12px;border-radius:6px;border:1px solid var(--gold);background:rgba(201,168,76,0.1);color:var(--gold);cursor:pointer">Claim & Start</button>' :
-        type === 'assigned' ?
-        '<button type="button" onclick="markOrderComplete(\'' + o.id + '\')" style="margin-top:8px;padding:6px 14px;font-size:12px;border-radius:6px;border:1px solid var(--green);background:rgba(39,174,96,0.1);color:var(--green);cursor:pointer">Mark Complete</button>' : '';
+      const vesselName = vessel ? vessel.name : (o.vessel ? o.vessel.name : 'Unknown vessel');
+      let actionBtn = '';
+      if (type === 'open') {
+        actionBtn = '<button type="button" onclick="claimOrder(\'' + o.id + '\')" style="margin-top:8px;padding:6px 14px;font-size:12px;border-radius:6px;border:1px solid var(--gold);background:rgba(193,125,60,0.1);color:var(--gold);cursor:pointer">Claim & Start</button>';
+      } else if (type === 'assigned') {
+        actionBtn = '<button type="button" onclick="markOrderComplete(\'' + o.id + '\')" style="margin-top:8px;padding:6px 14px;font-size:12px;border-radius:6px;border:1px solid var(--green);background:rgba(45,212,191,0.1);color:var(--green);cursor:pointer">Mark Complete</button>';
+      }
       return '<div style="padding:14px 0;border-bottom:1px solid var(--border)">' +
-        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
-        '<div style="flex:1">' +
         '<div style="font-size:11px;color:var(--steel);margin-bottom:4px">' + vesselName + ' — ' + date + '</div>' +
         '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' +
         '<span style="font-size:14px;font-weight:600;color:var(--cream)">' + o.system + '</span>' +
         '<span style="font-size:10px;padding:2px 6px;border-radius:10px;border:1px solid ' + pc + ';color:' + pc + '">' + (o.priority||'medium') + '</span>' +
         '</div>' +
+        (o.component ? '<div style="font-size:12px;color:var(--steel);margin-top:2px">' + o.component + '</div>' : '') +
         '<div style="font-size:13px;color:var(--steel);margin-top:4px;line-height:1.4">' + o.description + '</div>' +
-        actionBtn +
-        '</div>' +
-        '<span style="font-size:11px;padding:3px 8px;border-radius:10px;border:1px solid ' + sc + ';color:' + sc + ';white-space:nowrap">' + o.status.replace('_',' ') + '</span>' +
-        '</div></div>';
+        actionBtn + '</div>';
     }).join('');
   } catch(e) {
     el.innerHTML = '<div class="empty-state" style="color:var(--red)">Failed to load orders.</div>';
@@ -3508,6 +3543,49 @@ function openVesselWorkOrder() {
 // ── AI ONBOARDING ──────────────────────────────
 let aiExtractedData = null;
 
+function toggleApiKeySection() {
+  const sec = document.getElementById('api-key-section');
+  const icon = document.getElementById('api-key-toggle-icon');
+  const open = sec.style.display === 'none';
+  sec.style.display = open ? 'block' : 'none';
+  icon.textContent = open ? '▲ collapse' : '▼ expand';
+  if (open) {
+    // Restore saved key from session
+    const saved = sessionStorage.getItem('vpt_anthropic_key');
+    if (saved) {
+      document.getElementById('ai-user-api-key').value = saved;
+      document.getElementById('api-key-status').textContent = '✓ Key loaded from this session';
+      document.getElementById('api-key-status').style.color = 'var(--green)';
+    }
+  }
+}
+
+function saveApiKeyToSession() {
+  const key = document.getElementById('ai-user-api-key').value.trim();
+  const status = document.getElementById('api-key-status');
+  const isGemini = key.startsWith('AIza');
+  const isAnthropic = key.startsWith('sk-ant-') || key.startsWith('sk-');
+  if (isGemini || isAnthropic) {
+    sessionStorage.setItem('vpt_anthropic_key', key);
+    const provider = isGemini ? 'Google Gemini (free)' : 'Anthropic';
+    status.textContent = '✓ ' + provider + ' key saved for this session';
+    status.style.color = 'var(--green)';
+  } else if (key.length > 5) {
+    status.textContent = 'Use a Gemini key (AIza...) or Anthropic key (sk-ant-...)';
+    status.style.color = 'var(--amber)';
+  } else {
+    sessionStorage.removeItem('vpt_anthropic_key');
+    status.textContent = '';
+  }
+}
+
+function clearApiKey() {
+  sessionStorage.removeItem('vpt_anthropic_key');
+  document.getElementById('ai-user-api-key').value = '';
+  document.getElementById('api-key-status').textContent = 'Key cleared.';
+  document.getElementById('api-key-status').style.color = 'var(--steel)';
+}
+
 async function runAIOnboard() {
   const text = document.getElementById('ai-onboard-text').value.trim();
   const files = document.getElementById('ai-onboard-files').files;
@@ -3543,10 +3621,13 @@ async function runAIOnboard() {
     }
     messageContent.push({ type: 'text', text: promptText });
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const userApiKey = sessionStorage.getItem('vpt_anthropic_key') || '';
+
+    const response = await fetch(API + '/api/ai/analyze', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
       body: JSON.stringify({
+        userApiKey: userApiKey || undefined,
         model: 'claude-sonnet-4-6',
         max_tokens: 1500,
         messages: [{ role: 'user', content: messageContent }]

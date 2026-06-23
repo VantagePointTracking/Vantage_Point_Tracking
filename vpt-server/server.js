@@ -9,7 +9,8 @@ const logRoutes = require('./routes/logs');
 const adminRoutes = require('./routes/admin');
 const maintenanceRoutes = require('./routes/maintenance');
 const fleetRoutes = require('./routes/fleet');
-const tripsRoutes = require('./routes/trips'); // <--- This was missing!
+const tripsRoutes = require('./routes/trips');
+const aiRoutes = require('./routes/ai');
 
 const app = express();
 
@@ -23,7 +24,8 @@ app.use('/api/logs', logRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/maintenance', maintenanceRoutes);
 app.use('/api/fleet', fleetRoutes);
-app.use('/api/trips', tripsRoutes); // <--- This was missing!
+app.use('/api/trips', tripsRoutes);
+app.use('/api/ai', aiRoutes);
 
 app.get(['/','/api', '/app', '/login'], (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
