@@ -637,6 +637,11 @@ select option{background:var(--surface2);color:var(--cream)}
 
 <!-- Engineering Crew Dashboard -->
 <div id="screen-engineering" class="screen" style="display:none">
+  <!-- Exit view banner — only visible when overlordadmin is viewing as engineer -->
+  <div id="eng-view-banner" style="display:none;background:rgba(193,125,60,0.12);border:1px solid var(--gold);border-radius:8px;padding:8px 14px;margin-bottom:12px;display:none;align-items:center;justify-content:space-between">
+    <span style="font-size:12px;color:var(--gold)"><i class="ti ti-eye"></i> Viewing as Engineering Crew</span>
+    <button onclick="switchViewRole(realUserRole||'overlordadmin')" style="font-size:12px;padding:4px 12px;border-radius:6px;border:1px solid var(--gold);background:var(--gold);color:#1a1a1a;cursor:pointer;font-weight:600">Exit View</button>
+  </div>
   <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 0 0.5rem">
     <div>
       <div class="dash-title" id="eng-greeting">Engineering</div>
@@ -3237,19 +3242,30 @@ async function loadEngOrders(type) {
   const el = document.getElementById(elMap[type]);
   if (!el) return;
   el.innerHTML = '<div class="empty-state"><span class="spinner spinner-dark"></span></div>';
+  const myName = currentUser ? currentUser.full_name : '';
   try {
-    // Engineers work from the maintenance log (approved orders only)
-    const statusMap = { open: 'open', assigned: 'in_progress', completed: 'complete' };
-    const res = await fetch(API + '/api/maintenance/log?status=' + statusMap[type], {
-      headers: {'Authorization': 'Bearer ' + token}
-    });
-    const data = await res.json();
-    const orders = data.entries || [];
+    let orders = [];
+
+    if (type === 'assigned') {
+      // Fetch all log entries, filter to mine (open or in_progress) — catches pre-assignments from managers
+      const res = await fetch(API + '/api/maintenance/log', { headers: {'Authorization': 'Bearer ' + token} });
+      const data = await res.json();
+      orders = (data.entries || []).filter(o => o.assigned_to === myName && o.status !== 'complete');
+    } else if (type === 'open') {
+      // Unassigned open items anyone can pick up
+      const res = await fetch(API + '/api/maintenance/log?status=open', { headers: {'Authorization': 'Bearer ' + token} });
+      const data = await res.json();
+      orders = (data.entries || []).filter(o => !o.assigned_to);
+    } else {
+      const res = await fetch(API + '/api/maintenance/log?status=complete', { headers: {'Authorization': 'Bearer ' + token} });
+      const data = await res.json();
+      orders = data.entries || [];
+    }
 
     if (!orders.length) {
       const msgs = {
-        open: 'No open work orders — nothing assigned yet.',
-        assigned: 'No work orders in progress.',
+        assigned: 'No work orders assigned to you.',
+        open: 'No unassigned open work orders.',
         completed: 'No completed work orders yet.'
       };
       el.innerHTML = '<div class="empty-state">' + msgs[type] + '</div>';
@@ -3262,18 +3278,23 @@ async function loadEngOrders(type) {
       const date = new Date(o.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
       const vessel = allVessels.find(v => v.id === o.vessel_id);
       const vesselName = vessel ? vessel.name : (o.vessel ? o.vessel.name : 'Unknown vessel');
+      const statusBadge = o.status === 'in_progress'
+        ? '<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(193,125,60,0.15);color:var(--gold);border:1px solid var(--gold);margin-left:6px">In Progress</span>'
+        : '<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(107,114,128,0.15);color:var(--steel);border:1px solid var(--border);margin-left:6px">Open</span>';
       let actionBtn = '';
-      if (type === 'open') {
+      if (type === 'assigned') {
+        actionBtn = o.status === 'in_progress'
+          ? '<button type="button" onclick="markOrderComplete(\'' + o.id + '\')" style="margin-top:8px;padding:6px 14px;font-size:12px;border-radius:6px;border:1px solid var(--green);background:rgba(45,212,191,0.1);color:var(--green);cursor:pointer"><i class="ti ti-check"></i> Mark Complete</button>'
+          : '<button type="button" onclick="claimOrder(\'' + o.id + '\')" style="margin-top:8px;padding:6px 14px;font-size:12px;border-radius:6px;border:1px solid var(--gold);background:rgba(193,125,60,0.1);color:var(--gold);cursor:pointer"><i class="ti ti-player-play"></i> Start Work</button>';
+      } else if (type === 'open') {
         actionBtn = '<button type="button" onclick="claimOrder(\'' + o.id + '\')" style="margin-top:8px;padding:6px 14px;font-size:12px;border-radius:6px;border:1px solid var(--gold);background:rgba(193,125,60,0.1);color:var(--gold);cursor:pointer"><i class="ti ti-hand-grab"></i> Claim & Start</button>';
-      } else if (type === 'assigned') {
-        actionBtn = '<button type="button" onclick="markOrderComplete(\'' + o.id + '\')" style="margin-top:8px;padding:6px 14px;font-size:12px;border-radius:6px;border:1px solid var(--green);background:rgba(45,212,191,0.1);color:var(--green);cursor:pointer"><i class="ti ti-check"></i> Mark Complete</button>';
       }
       return '<div style="padding:14px 0;border-bottom:1px solid var(--border)">' +
-        '<div style="font-size:11px;color:var(--steel);margin-bottom:4px">' + vesselName + ' — ' + date +
-        (o.assigned_to ? ' · <span style="color:var(--gold)">' + o.assigned_to + '</span>' : '') + '</div>' +
+        '<div style="font-size:11px;color:var(--steel);margin-bottom:4px">' + vesselName + ' — ' + date + '</div>' +
         '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' +
         '<span style="font-size:14px;font-weight:600;color:var(--cream)">' + o.system + '</span>' +
         '<span style="font-size:10px;padding:2px 6px;border-radius:10px;border:1px solid ' + pc + ';color:' + pc + '">' + (o.priority||'medium') + '</span>' +
+        (type === 'assigned' ? statusBadge : '') +
         '</div>' +
         (o.component ? '<div style="font-size:12px;color:var(--steel);margin-top:2px">' + o.component + '</div>' : '') +
         '<div style="font-size:13px;color:var(--steel);margin-top:4px;line-height:1.4">' + o.description + '</div>' +
@@ -3369,13 +3390,24 @@ function toggleRoleSwitcher() {
   if (menu) menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
 }
 
+// Close role switcher when clicking outside it
+document.addEventListener('click', function(e) {
+  const menu = document.getElementById('role-switcher-menu');
+  const chip = document.getElementById('topbar-role');
+  if (menu && chip && !menu.contains(e.target) && !chip.contains(e.target)) {
+    menu.style.display = 'none';
+  }
+});
+
 function switchViewRole(role) {
   if (!realUserRole) realUserRole = currentUser.role;
-  // Only overlordadmin can do this
   if (realUserRole !== 'overlordadmin') return;
   currentUser.role = role;
   const menu = document.getElementById('role-switcher-menu');
   if (menu) menu.style.display = 'none';
+  // Show exit banner on engineering screen when viewing as eng crew
+  const engBanner = document.getElementById('eng-view-banner');
+  if (engBanner) engBanner.style.display = (role === 'engineering_crew' && realUserRole === 'overlordadmin') ? 'flex' : 'none';
   applyRoleUI();
   if (role === 'engineering_crew') { loadEngineeringDashboard(); show('screen-engineering'); }
   else { loadDashboard(); show('screen-dashboard'); }
