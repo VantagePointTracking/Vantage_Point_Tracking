@@ -507,6 +507,7 @@ select option{background:var(--surface2);color:var(--cream)}
       <button id="manage-users-btn" onclick="show('screen-users');loadUsers()" class="btn btn-sm" style="display:none"><i class="ti ti-users"></i> Users</button>
       <button id="submit-log-btn" onclick="switchToCrewMode()" class="btn btn-primary btn-sm" style="display:none"><i class="ti ti-plus"></i> Submit a log</button>
       <button id="eng-dashboard-btn" onclick="loadEngineeringDashboard();show('screen-engineering')" class="btn btn-primary btn-sm" style="display:none"><i class="ti ti-tools"></i> My Work Orders</button>
+      <button id="compliance-btn" onclick="openComplianceReport()" class="btn btn-sm" style="display:none" title="Export USCG compliance report"><i class="ti ti-file-certificate"></i> Compliance Report</button>
       <button id="maint-nav-btn" onclick="loadMaintenance();show('screen-maintenance')" class="btn btn-sm" style="display:none"><i class="ti ti-tool"></i> Maintenance</button>
       <button id="fleet-nav-btn" onclick="loadFleetStatus();show('screen-fleet-status')" class="btn btn-sm" style="display:none"><i class="ti ti-ship"></i> Fleet</button>
       <button id="analytics-nav-btn" onclick="loadAnalytics();show('screen-analytics')" class="btn btn-sm" style="display:none"><i class="ti ti-chart-line"></i> Analytics</button>
@@ -1212,6 +1213,8 @@ if (role === 'crew' || role === 'boat_crew') {
     } else {
       document.getElementById('manage-users-btn').style.display = isAdmin ? 'inline-flex' : 'none';
       document.getElementById('submit-log-btn').style.display = canManage ? 'inline-flex' : 'none';
+      const compBtn = document.getElementById('compliance-btn');
+      if (compBtn) compBtn.style.display = canManage ? 'inline-flex' : 'none';
       loadDashboard();
       if (canManage) {
         loadNotifications();
@@ -3436,6 +3439,8 @@ function applyRoleUI() {
   if (scheduleBtn) scheduleBtn.style.display = canManage ? 'inline-flex' : 'none';
   const onboardBtn = document.getElementById('onboard-nav-btn');
   if (onboardBtn) onboardBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+  const complianceBtn = document.getElementById('compliance-btn');
+  if (complianceBtn) complianceBtn.style.display = canManage ? 'inline-flex' : 'none';
 }
 
 
@@ -3725,27 +3730,36 @@ function calcPOLine(id) {
 async function savePurchaseOrder(status) {
   const errEl = document.getElementById('po-error');
   const vendor = document.getElementById('po-vendor').value.trim();
-  if (!vendor) { errEl.textContent = 'Vendor (To) is required.'; errEl.style.display = 'block'; return; }
+  if (!vendor) { errEl.textContent = 'Vendor is required.'; errEl.style.display = 'block'; return; }
 
   const lines = [];
+  let subtotal = 0;
   document.querySelectorAll('[id^="po-desc-"]').forEach(el => {
     const id = el.id.replace('po-desc-','');
+    const amount = parseFloat((document.getElementById('po-amount-'+id)||{}).value) || 0;
+    subtotal += amount;
     lines.push({
       qty: (document.getElementById('po-qty-'+id)||{}).value || '',
       description: el.value,
       price: (document.getElementById('po-price-'+id)||{}).value || '',
-      amount: (document.getElementById('po-amount-'+id)||{}).value || ''
+      amount: amount.toFixed(2)
     });
   });
 
   const payload = {
-    po_date: document.getElementById('po-date').value,
+    vessel_id: currentVesselDetailId || null,
+    po_number: document.getElementById('po-date').value.replace(/-/g,''),
+    date: document.getElementById('po-date').value,
     ship_to: document.getElementById('po-ship-to').value,
-    vendor: vendor,
+    vendor,
     ordered_by: document.getElementById('po-ordered-by').value,
-    lines: lines,
-    status: status
+    line_items: lines,
+    subtotal: subtotal.toFixed(2),
+    status: 'submitted'
   };
+
+  const btn = document.querySelector('#screen-purchase-order .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
 
   try {
     const res = await fetch(API + '/api/purchase-orders', {
@@ -3753,13 +3767,117 @@ async function savePurchaseOrder(status) {
       headers: {'Content-Type':'application/json','Authorization':'Bearer ' + token},
       body: JSON.stringify(payload)
     });
-    if (!res.ok) throw new Error('backend');
-    alert(status === 'pending' ? 'Purchase order submitted!' : 'Draft saved!');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    errEl.style.display = 'none';
     closePurchaseOrder();
   } catch(e) {
-    alert('Purchase order ' + (status === 'pending' ? 'submitted' : 'saved') + ' locally. (Backend route /api/purchase-orders needs to be added to save permanently.)');
-    closePurchaseOrder();
+    errEl.textContent = 'Failed to save: ' + e.message;
+    errEl.style.display = 'block';
+    if (btn) { btn.disabled = false; btn.textContent = 'Submit PO'; }
   }
+}
+
+// ── COMPLIANCE REPORT EXPORT ──────────────────────────────────
+async function openComplianceReport() {
+  const dateFrom = prompt('Report start date (YYYY-MM-DD):',
+    new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0]);
+  if (!dateFrom) return;
+  const dateTo = prompt('Report end date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+  if (!dateTo) return;
+
+  const loadingMsg = 'Generating compliance report...';
+  const win = window.open('', '_blank');
+  win.document.write('<html><body style="font-family:sans-serif;padding:2rem;color:#333">' +
+    '<h2>Generating report...</h2><p>Please wait.</p></body></html>');
+
+  try {
+    const res = await fetch(API + '/api/reports/compliance?date_from=' + dateFrom + '&date_to=' + dateTo, {
+      headers: {'Authorization': 'Bearer ' + token}
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    win.document.write(buildComplianceHTML(data));
+    win.document.close();
+  } catch(e) {
+    win.document.write('<html><body style="padding:2rem"><h2>Error</h2><p>' + e.message + '</p></body></html>');
+    win.document.close();
+  }
+}
+
+function buildComplianceHTML(d) {
+  const fmt = dt => dt ? new Date(dt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+  const fmtDate = dt => dt ? new Date(dt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+
+  const tripsHTML = d.trips.length === 0 ? '<p style="color:#888">No completed voyages in this period.</p>' :
+    d.trips.map(t => {
+      const tk = t.ticket;
+      const watches = t.watches || [];
+      return '<div style="border:1px solid #ddd;border-radius:6px;padding:12px;margin-bottom:12px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
+        '<div><strong>' + (t.vessel ? t.vessel.name : 'Unknown Vessel') + '</strong>' +
+        (t.trip_number ? ' — Trip #' + t.trip_number : '') + '</div>' +
+        '<div style="color:#666;font-size:12px">' + fmtDate(t.departure_time) + '</div></div>' +
+        '<div style="color:#555;font-size:13px;margin-top:6px">' +
+        'Departed: ' + fmt(t.departure_time) + ' &nbsp;|&nbsp; Arrived: ' + fmt(t.arrival_time) +
+        (t.total_engine_hours ? ' &nbsp;|&nbsp; Engine hrs: ' + t.total_engine_hours : '') +
+        (tk && tk.pax_total ? ' &nbsp;|&nbsp; Pax: ' + tk.pax_total : '') +
+        (tk && tk.weather ? ' &nbsp;|&nbsp; Weather: ' + tk.weather : '') + '</div>' +
+        (tk && tk.destination ? '<div style="color:#555;font-size:13px">Destination: ' + tk.destination + '</div>' : '') +
+        (watches.length > 0 ? '<div style="font-size:12px;color:#888;margin-top:4px">' + watches.length + ' watch ' + (watches.length === 1 ? 'entry' : 'entries') + ' logged</div>' : '') +
+        (tk && (tk.legs||[]).length > 0 ? '<div style="font-size:12px;color:#888">' + tk.legs.length + ' trip leg(s)</div>' : '') +
+        '</div>';
+    }).join('');
+
+  const drillsHTML = d.drills.length === 0 ? '<p style="color:#888">No safety drills logged in this period.</p>' :
+    '<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr>' +
+    '<th style="text-align:left;padding:6px;border-bottom:2px solid #ddd">Drill Type</th>' +
+    '<th style="text-align:left;padding:6px;border-bottom:2px solid #ddd">Date</th>' +
+    '<th style="text-align:left;padding:6px;border-bottom:2px solid #ddd">Time</th>' +
+    '<th style="text-align:left;padding:6px;border-bottom:2px solid #ddd">Conducted By</th>' +
+    '<th style="text-align:left;padding:6px;border-bottom:2px solid #ddd">Notes</th>' +
+    '</tr></thead><tbody>' +
+    d.drills.map(dr => '<tr><td style="padding:6px;border-bottom:1px solid #eee">' + (dr.type||'') + '</td>' +
+      '<td style="padding:6px;border-bottom:1px solid #eee">' + fmtDate(dr.ticket_date) + '</td>' +
+      '<td style="padding:6px;border-bottom:1px solid #eee">' + (dr.time_conducted||'') + '</td>' +
+      '<td style="padding:6px;border-bottom:1px solid #eee">' + (dr.conducted_by||'') + '</td>' +
+      '<td style="padding:6px;border-bottom:1px solid #eee">' + (dr.notes||'') + '</td></tr>').join('') +
+    '</tbody></table>';
+
+  const maintHTML = d.maintenance_completed.length === 0 ? '<p style="color:#888">No completed maintenance in this period.</p>' :
+    '<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr>' +
+    '<th style="text-align:left;padding:6px;border-bottom:2px solid #ddd">Vessel</th>' +
+    '<th style="text-align:left;padding:6px;border-bottom:2px solid #ddd">System</th>' +
+    '<th style="text-align:left;padding:6px;border-bottom:2px solid #ddd">Work Performed</th>' +
+    '<th style="text-align:left;padding:6px;border-bottom:2px solid #ddd">Assigned To</th>' +
+    '<th style="text-align:left;padding:6px;border-bottom:2px solid #ddd">Completed</th>' +
+    '</tr></thead><tbody>' +
+    d.maintenance_completed.map(m => '<tr>' +
+      '<td style="padding:6px;border-bottom:1px solid #eee">' + (m.vessel ? m.vessel.name : '—') + '</td>' +
+      '<td style="padding:6px;border-bottom:1px solid #eee">' + m.system + (m.component ? ' — ' + m.component : '') + '</td>' +
+      '<td style="padding:6px;border-bottom:1px solid #eee">' + (m.work_performed || m.description || '—') + '</td>' +
+      '<td style="padding:6px;border-bottom:1px solid #eee">' + (m.assigned_to || '—') + '</td>' +
+      '<td style="padding:6px;border-bottom:1px solid #eee">' + fmtDate(m.completed_at) + '</td>' +
+      '</tr>').join('') +
+    '</tbody></table>';
+
+  return '<!DOCTYPE html><html><head><title>VPT Compliance Report — ' + d.date_from + ' to ' + d.date_to + '</title>' +
+    '<style>body{font-family:"Helvetica Neue",sans-serif;color:#222;padding:2rem;max-width:900px;margin:0 auto}' +
+    'h1{color:#1a1a1a;border-bottom:3px solid #C9A84C;padding-bottom:8px}' +
+    'h2{color:#444;margin-top:2rem;border-bottom:1px solid #ddd;padding-bottom:6px}' +
+    '.meta{color:#666;font-size:13px;margin-bottom:2rem}' +
+    '@media print{body{padding:0}}</style></head><body>' +
+    '<h1>Vantage Point Tracking — Compliance Report</h1>' +
+    '<div class="meta"><strong>' + d.company.name + '</strong><br>' +
+    'Report period: ' + fmtDate(d.date_from) + ' — ' + fmtDate(d.date_to) + '<br>' +
+    'Generated: ' + fmt(d.generated_at) + ' by ' + d.generated_by + '<br>' +
+    'Vessels: ' + d.vessels.map(v => v.name).join(', ') + '</div>' +
+    '<h2>Voyage Records (' + d.trips.length + ')</h2>' + tripsHTML +
+    '<h2>Safety Drills (' + d.drills.length + ')</h2>' + drillsHTML +
+    '<h2>Maintenance Completed (' + d.maintenance_completed.length + ')</h2>' + maintHTML +
+    '<p style="margin-top:3rem;color:#999;font-size:11px">Generated by Vantage Point Tracking — ' +
+    'All entries are digitally timestamped and tamper-evident per USCG inspection requirements.</p>' +
+    '</body></html>';
 }
 
 

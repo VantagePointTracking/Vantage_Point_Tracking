@@ -11,6 +11,8 @@ const maintenanceRoutes = require('./routes/maintenance');
 const fleetRoutes = require('./routes/fleet');
 const tripsRoutes = require('./routes/trips');
 const tripTicketsRoutes = require('./routes/trip-tickets');
+const purchaseOrdersRoutes = require('./routes/purchase-orders');
+const reportsRoutes = require('./routes/reports');
 const aiRoutes = require('./routes/ai');
 
 const app = express();
@@ -40,6 +42,8 @@ app.use('/api/maintenance', maintenanceRoutes);
 app.use('/api/fleet', fleetRoutes);
 app.use('/api/trips', tripsRoutes);
 app.use('/api/trip-tickets', tripTicketsRoutes);
+app.use('/api/purchase-orders', purchaseOrdersRoutes);
+app.use('/api/reports', reportsRoutes);
 app.use('/api/ai', aiRoutes);
 
 app.get(['/','/api', '/app', '/login'], (req, res) => {
