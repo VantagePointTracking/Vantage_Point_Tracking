@@ -1138,9 +1138,7 @@ function show(id) {
 
 function handleSuccessBack() {
   const role = currentUser ? currentUser.role : 'crew';
-  if (role === 'crew') {
-    show('screen-vessels');
-  } else if (role === 'engineering_crew') {
+  if (role === 'engineering_crew') {
     loadEngineeringDashboard();
     show('screen-engineering');
   } else {
@@ -3378,11 +3376,8 @@ function switchViewRole(role) {
   currentUser.role = role;
   const menu = document.getElementById('role-switcher-menu');
   if (menu) menu.style.display = 'none';
-  // Re-run the post-login UI setup
   applyRoleUI();
-  // Route to the appropriate screen
-  if (role === 'crew') { loadVessels(); show('screen-vessels'); }
-  else if (role === 'engineering_crew') { loadEngineeringDashboard(); show('screen-engineering'); }
+  if (role === 'engineering_crew') { loadEngineeringDashboard(); show('screen-engineering'); }
   else { loadDashboard(); show('screen-dashboard'); }
 }
 
