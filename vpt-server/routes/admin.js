@@ -1,4 +1,3 @@
-Admin · JS
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const supabase = require('../lib/supabase');
@@ -8,8 +7,9 @@ const router = express.Router();
 router.use(requireAuth);
 
 const ADMIN_ROLES = ['overlordadmin','company_admin'];
-
 router.use(requireRole(ADMIN_ROLES));
+
+const ALLOWED_ROLES = ['company_admin','port_engineer','vessel_ops_manager','office','crew','engineering_crew'];
 
 // ── GET /api/admin/users ─────────────────────────────────────
 router.get('/users', async (req, res) => {
@@ -29,7 +29,7 @@ router.post('/users', async (req, res) => {
   if (!full_name || !email || !password) {
     return res.status(400).json({ error: 'full_name, email, and password required' });
   }
-  const allowed_roles = ['company_admin','port_engineer','vessel_ops_manager','office','crew','engineering_crew'];
+  if (role && !ALLOWED_ROLES.includes(role)) {
     return res.status(400).json({ error: 'Invalid role' });
   }
   try {
@@ -57,7 +57,7 @@ router.post('/users', async (req, res) => {
 // ── PUT /api/admin/users/:id/role ───────────────────────────
 router.put('/users/:id/role', async (req, res) => {
   const { role } = req.body;
-  const allowed_roles = ['company_admin','port_engineer','vessel_ops_manager','office','crew','engineering_crew'];
+  if (!role || !ALLOWED_ROLES.includes(role)) {
     return res.status(400).json({ error: 'Invalid role' });
   }
   const { data, error } = await supabase
@@ -98,9 +98,3 @@ router.get('/company', async (req, res) => {
 });
 
 module.exports = router;
-
-
-
-
-
-
