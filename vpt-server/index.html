@@ -506,6 +506,7 @@ select option{background:var(--surface2);color:var(--cream)}
     <div style="display:flex;gap:8px">
       <button id="manage-users-btn" onclick="show('screen-users');loadUsers()" class="btn btn-sm" style="display:none"><i class="ti ti-users"></i> Users</button>
       <button id="submit-log-btn" onclick="switchToCrewMode()" class="btn btn-primary btn-sm" style="display:none"><i class="ti ti-plus"></i> Submit a log</button>
+      <button id="eng-dashboard-btn" onclick="loadEngineeringDashboard();show('screen-engineering')" class="btn btn-primary btn-sm" style="display:none"><i class="ti ti-tools"></i> My Work Orders</button>
       <button id="maint-nav-btn" onclick="loadMaintenance();show('screen-maintenance')" class="btn btn-sm" style="display:none"><i class="ti ti-tool"></i> Maintenance</button>
       <button id="fleet-nav-btn" onclick="loadFleetStatus();show('screen-fleet-status')" class="btn btn-sm" style="display:none"><i class="ti ti-ship"></i> Fleet</button>
       <button id="analytics-nav-btn" onclick="loadAnalytics();show('screen-analytics')" class="btn btn-sm" style="display:none"><i class="ti ti-chart-line"></i> Analytics</button>
@@ -956,7 +957,7 @@ select option{background:var(--surface2);color:var(--cream)}
         <option value="port_engineer">Port Engineer — maintenance management</option>
         <option value="vessel_ops_manager">Vessel Ops Manager — operations</option>
         <option value="office">Office — view dashboard</option>
-        <option value="admin">Admin — full access</option>
+        <option value="company_admin">Admin — full access</option>
       </select>
     </div>
     <div id="add-user-error" class="error-msg"></div>
@@ -1189,19 +1190,30 @@ async function doLogin() {
     if (scheduleBtnL) scheduleBtnL.style.display = canManage ? 'inline-flex' : 'none';
     const onboardBtnL = document.getElementById('onboard-nav-btn');
     if (onboardBtnL) onboardBtnL.style.display = isAdmin ? 'inline-flex' : 'none';
-if (role === 'crew') {
+if (role === 'crew' || role === 'boat_crew') {
       const hr = new Date().getHours();
       document.getElementById('greeting').textContent = (hr<12?'Good morning':hr<17?'Good afternoon':'Good evening') + ', ' + (currentUser.full_name||'crew');
-      loadVessels();
-      show('screen-vessels');
+      document.getElementById('manage-users-btn').style.display = 'none';
+      document.getElementById('submit-log-btn').style.display = 'inline-flex';
+      loadDashboard();
+      show('screen-dashboard');
     } else if (role === 'engineering_crew') {
-      loadEngineeringDashboard();
-      show('screen-engineering');
+      const hr = new Date().getHours();
+      document.getElementById('greeting').textContent = (hr<12?'Good morning':hr<17?'Good afternoon':'Good evening') + ', ' + (currentUser.full_name||'Engineer');
+      document.getElementById('manage-users-btn').style.display = 'none';
+      document.getElementById('submit-log-btn').style.display = 'none';
+      const engBtn = document.getElementById('eng-dashboard-btn');
+      if (engBtn) engBtn.style.display = 'inline-flex';
+      loadDashboard();
+      show('screen-dashboard');
     } else {
       document.getElementById('manage-users-btn').style.display = isAdmin ? 'inline-flex' : 'none';
       document.getElementById('submit-log-btn').style.display = canManage ? 'inline-flex' : 'none';
       loadDashboard();
-      if (canManage) loadNotifications();
+      if (canManage) {
+        loadNotifications();
+        setInterval(() => { if (token) loadNotifications(); }, 60000);
+      }
       show('screen-dashboard');
     }
   } catch(e) {
@@ -2033,12 +2045,24 @@ function approveOrder(orderId) {
     '<div style="color:var(--gold)">' + order.system + (order.component ? ' — ' + order.component : '') + '</div>' +
     '<div style="margin-top:4px">' + order.description + '</div>' +
     '<div style="margin-top:4px;color:var(--steel)">Reported by ' + order.submitter_name + '</div>';
-  document.getElementById('approve-assigned-to').value = '';
+  const sel = document.getElementById('approve-assigned-to');
+  sel.innerHTML = '<option value="">Unassigned</option>';
   document.getElementById('approve-priority').value = order.priority || 'medium';
   document.getElementById('approve-parts').value = '';
   document.getElementById('approve-notes').value = '';
   document.getElementById('approve-error').style.display = 'none';
   document.getElementById('approve-confirm-btn').disabled = false;
+  // Load engineers into dropdown
+  fetch(API + '/api/admin/users', {headers: {'Authorization': 'Bearer ' + token}})
+    .then(r => r.json()).then(data => {
+      const engineers = (data.users || []).filter(u => u.role === 'engineering_crew' && u.active !== false);
+      engineers.forEach(u => {
+        const opt = document.createElement('option');
+        opt.value = u.full_name;
+        opt.textContent = u.full_name;
+        sel.appendChild(opt);
+      });
+    }).catch(() => {});
   document.getElementById('approve-confirm-btn').textContent = 'Add to maintenance log';
   document.getElementById('modal-approve-order').classList.add('open');
 }
@@ -2780,7 +2804,15 @@ async function openUnderwayLog() {
 function buildEngineReadings() {
   const el = document.getElementById('uw-engine-readings');
   if (!currentTripEngines.length) {
-    el.innerHTML = '<div style="font-size:13px;color:var(--steel)">No engines configured for this vessel.</div>';
+    // No engines configured — show a simple engine hours field so logging still works
+    el.innerHTML = '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px">' +
+      '<div style="font-size:12px;color:var(--steel);margin-bottom:10px">No engines configured yet. You can still log engine hours below. Add engines to your vessel profile for full readings.</div>' +
+      '<div class="reading-row">' +
+      '<div><div class="reading-label">Engine Hours <span class="required-star">*</span></div>' +
+      '<input class="reading-input hours-required" type="number" id="eng_fallback_engine_hours" placeholder="Required"></div>' +
+      '<div><div class="reading-label">Fuel Level %</div>' +
+      '<input class="reading-input" type="number" id="eng_fallback_fuel_level" placeholder="0-100"></div>' +
+      '</div></div>';
     return;
   }
   el.innerHTML = currentTripEngines.map((eng, i) => {
@@ -2805,20 +2837,33 @@ async function submitWatchEntry() {
   btn.innerHTML = '<span class="spinner"></span>Submitting...';
   btn.disabled = true;
 
-  // Collect engine readings
-  const engineReadings = currentTripEngines.map((eng, i) => {
-    const readings = {};
-    ENGINE_READING_FIELDS.forEach(f => {
-      const val = document.getElementById('eng_' + i + '_' + f.key);
-      readings[f.key] = val ? (parseFloat(val.value) || null) : null;
+  // Collect engine readings (handles both configured engines and fallback)
+  let engineReadings = [];
+  if (currentTripEngines.length) {
+    engineReadings = currentTripEngines.map((eng, i) => {
+      const readings = {};
+      ENGINE_READING_FIELDS.forEach(f => {
+        const val = document.getElementById('eng_' + i + '_' + f.key);
+        readings[f.key] = val ? (parseFloat(val.value) || null) : null;
+      });
+      return { engine_id: eng.id, position: eng.position, engine_model: eng.engine_model, readings };
     });
-    return {
-      engine_id: eng.id,
-      position: eng.position,
-      engine_model: eng.engine_model,
-      readings
-    };
-  });
+  } else {
+    // Fallback: grab the simple engine hours / fuel level inputs
+    const fallbackHours = document.getElementById('eng_fallback_engine_hours');
+    const fallbackFuel = document.getElementById('eng_fallback_fuel_level');
+    if (fallbackHours && !fallbackHours.value) {
+      alert('Engine hours are required.');
+      btn.innerHTML = 'Submit watch entry'; btn.disabled = false; return;
+    }
+    engineReadings = [{
+      engine_id: null, position: 'main', engine_model: 'General',
+      readings: {
+        engine_hours: parseFloat(fallbackHours ? fallbackHours.value : 0) || 0,
+        fuel_level: parseFloat(fallbackFuel ? fallbackFuel.value : 0) || null
+      }
+    }];
+  }
 
   try {
     const res = await fetch(API + '/api/trips/' + currentTrip.id + '/watch', {
@@ -3084,12 +3129,15 @@ async function loadVesselTrips() {
       const date = new Date(t.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
       const statusColor = t.status === 'closed' ? 'var(--green)' : t.status === 'active' ? 'var(--amber)' : 'var(--steel)';
       const statusLabel = t.status === 'closed' ? 'Completed' : t.status === 'active' ? 'Active' : 'Pre-departure';
-      return '<div style="padding:12px 0;border-bottom:1px solid var(--border)">' +
+      const canOpen = t.status === 'active' || t.status === 'closed';
+      return '<div style="padding:12px 0;border-bottom:1px solid var(--border);' + (canOpen ? 'cursor:pointer' : '') + '" ' +
+        (canOpen ? 'onclick="openTripTicket(\'' + t.id + '\')"' : '') + '>' +
         '<div style="display:flex;justify-content:space-between;align-items:center">' +
         '<div style="font-size:14px;font-weight:600;color:var(--cream)">' + (t.trip_number ? 'Trip #' + t.trip_number : 'Trip — ' + date) + '</div>' +
         '<span style="font-size:11px;padding:3px 8px;border-radius:10px;border:1px solid ' + statusColor + ';color:' + statusColor + '">' + statusLabel + '</span>' +
         '</div>' +
         '<div style="font-size:12px;color:var(--steel);margin-top:4px">' + date + (t.total_engine_hours ? ' — ' + t.total_engine_hours + ' engine hrs' : '') + '</div>' +
+        (canOpen ? '<div style="font-size:11px;color:var(--gold);margin-top:4px"><i class="ti ti-file-invoice"></i> Tap to view ticket</div>' : '') +
         '</div>';
     }).join('');
   } catch(e) {
@@ -3192,28 +3240,25 @@ async function loadEngOrders(type) {
   if (!el) return;
   el.innerHTML = '<div class="empty-state"><span class="spinner spinner-dark"></span></div>';
   try {
-    let orders = [];
-    if (type === 'open') {
-      // Pending review orders — any engineer can see and claim
-      const res = await fetch(API + '/api/maintenance/orders', {headers: {'Authorization': 'Bearer ' + token}});
-      const data = await res.json();
-      orders = (data.orders || []).filter(o => o.status === 'pending_review');
-    } else {
-      // Assigned (in_progress) and Completed come from maintenance log
-      const statusParam = type === 'assigned' ? 'in_progress' : 'complete';
-      const res = await fetch(API + '/api/maintenance/log?status=' + statusParam, {headers: {'Authorization': 'Bearer ' + token}});
-      const data = await res.json();
-      orders = data.entries || [];
-    }
+    // Engineers work from the maintenance log (approved orders only)
+    const statusMap = { open: 'open', assigned: 'in_progress', completed: 'complete' };
+    const res = await fetch(API + '/api/maintenance/log?status=' + statusMap[type], {
+      headers: {'Authorization': 'Bearer ' + token}
+    });
+    const data = await res.json();
+    const orders = data.entries || [];
 
     if (!orders.length) {
-      const msgs = { assigned: 'No work orders in progress.', open: 'No pending issues to review.', completed: 'No completed work orders yet.' };
+      const msgs = {
+        open: 'No open work orders — nothing assigned yet.',
+        assigned: 'No work orders in progress.',
+        completed: 'No completed work orders yet.'
+      };
       el.innerHTML = '<div class="empty-state">' + msgs[type] + '</div>';
       return;
     }
 
     const priorityColors = { high: 'var(--red)', medium: 'var(--amber)', low: 'var(--steel)' };
-
     el.innerHTML = orders.map(o => {
       const pc = priorityColors[o.priority] || 'var(--steel)';
       const date = new Date(o.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
@@ -3221,12 +3266,13 @@ async function loadEngOrders(type) {
       const vesselName = vessel ? vessel.name : (o.vessel ? o.vessel.name : 'Unknown vessel');
       let actionBtn = '';
       if (type === 'open') {
-        actionBtn = '<button type="button" onclick="claimOrder(\'' + o.id + '\')" style="margin-top:8px;padding:6px 14px;font-size:12px;border-radius:6px;border:1px solid var(--gold);background:rgba(193,125,60,0.1);color:var(--gold);cursor:pointer">Claim & Start</button>';
+        actionBtn = '<button type="button" onclick="claimOrder(\'' + o.id + '\')" style="margin-top:8px;padding:6px 14px;font-size:12px;border-radius:6px;border:1px solid var(--gold);background:rgba(193,125,60,0.1);color:var(--gold);cursor:pointer"><i class="ti ti-hand-grab"></i> Claim & Start</button>';
       } else if (type === 'assigned') {
-        actionBtn = '<button type="button" onclick="markOrderComplete(\'' + o.id + '\')" style="margin-top:8px;padding:6px 14px;font-size:12px;border-radius:6px;border:1px solid var(--green);background:rgba(45,212,191,0.1);color:var(--green);cursor:pointer">Mark Complete</button>';
+        actionBtn = '<button type="button" onclick="markOrderComplete(\'' + o.id + '\')" style="margin-top:8px;padding:6px 14px;font-size:12px;border-radius:6px;border:1px solid var(--green);background:rgba(45,212,191,0.1);color:var(--green);cursor:pointer"><i class="ti ti-check"></i> Mark Complete</button>';
       }
       return '<div style="padding:14px 0;border-bottom:1px solid var(--border)">' +
-        '<div style="font-size:11px;color:var(--steel);margin-bottom:4px">' + vesselName + ' — ' + date + '</div>' +
+        '<div style="font-size:11px;color:var(--steel);margin-bottom:4px">' + vesselName + ' — ' + date +
+        (o.assigned_to ? ' · <span style="color:var(--gold)">' + o.assigned_to + '</span>' : '') + '</div>' +
         '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' +
         '<span style="font-size:14px;font-weight:600;color:var(--cream)">' + o.system + '</span>' +
         '<span style="font-size:10px;padding:2px 6px;border-radius:10px;border:1px solid ' + pc + ';color:' + pc + '">' + (o.priority||'medium') + '</span>' +
@@ -3236,33 +3282,42 @@ async function loadEngOrders(type) {
         actionBtn + '</div>';
     }).join('');
   } catch(e) {
-    el.innerHTML = '<div class="empty-state" style="color:var(--red)">Failed to load orders.</div>';
+    el.innerHTML = '<div class="empty-state" style="color:var(--red)">Failed to load work orders.</div>';
   }
 }
 
-async function claimOrder(orderId) {
+async function claimOrder(logId) {
   try {
-    const res = await fetch(API + '/api/maintenance/orders/' + orderId + '/approve', {
+    const res = await fetch(API + '/api/maintenance/log/' + logId, {
       method: 'PUT',
       headers: {'Content-Type':'application/json','Authorization':'Bearer ' + token},
-      body: JSON.stringify({status: 'in_progress', review_note: 'Claimed by engineer'})
+      body: JSON.stringify({
+        status: 'in_progress',
+        assigned_to: currentUser ? currentUser.full_name : 'Engineer'
+      })
     });
-    if (!res.ok) throw new Error('Failed');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to claim');
     switchEngTab('assigned', document.querySelector('#screen-engineering .nav-tab'));
   } catch(e) { alert('Failed to claim order: ' + e.message); }
 }
 
-async function markOrderComplete(orderId) {
+async function markOrderComplete(logId) {
+  const notes = prompt('Briefly describe the work performed (required):');
+  if (notes === null) return; // cancelled
   try {
-    const res = await fetch(API + '/api/maintenance/orders/' + orderId + '/approve', {
+    const res = await fetch(API + '/api/maintenance/log/' + logId, {
       method: 'PUT',
       headers: {'Content-Type':'application/json','Authorization':'Bearer ' + token},
-      body: JSON.stringify({status: 'completed', review_note: 'Completed by engineer'})
+      body: JSON.stringify({
+        status: 'complete',
+        work_performed: notes || 'Completed by ' + (currentUser ? currentUser.full_name : 'engineer')
+      })
     });
-    if (!res.ok) throw new Error('Failed');
-    switchEngTab('assigned', document.querySelector('#screen-engineering .nav-tab'));
-    loadNotifications();
-  } catch(e) { alert('Failed to update order: ' + e.message); }
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    switchEngTab('completed', document.querySelectorAll('#screen-engineering .nav-tab')[2]);
+  } catch(e) { alert('Failed to complete order: ' + e.message); }
 }
 
 
@@ -3900,7 +3955,9 @@ function recordSickCall() {
     <div id="approve-order-summary" style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:1rem;font-size:13px;color:var(--steel)"></div>
     <div class="form-group">
       <label>Assign to <span style="color:var(--steel);font-weight:400">(optional)</span></label>
-      <input type="text" id="approve-assigned-to" placeholder="Name of person assigned">
+      <select id="approve-assigned-to" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px">
+        <option value="">Unassigned</option>
+      </select>
     </div>
     <div class="form-group">
       <label>Priority</label>

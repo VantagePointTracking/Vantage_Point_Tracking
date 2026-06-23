@@ -3,12 +3,13 @@ const supabase = require('../lib/supabase');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { sendMaintenanceAlert } = require('../lib/email');
 const router = express.Router();
-
+ 
 router.use(requireAuth);
-
+ 
 const MANAGE_ROLES = ['overlordadmin','company_admin','port_engineer','vessel_ops_manager'];
-const ENG_READ_ROLES = ['overlordadmin','company_admin','port_engineer','vessel_ops_manager','engineering_crew'];
-
+const ENG_READ_ROLES = [...MANAGE_ROLES, 'engineering_crew'];
+const ENG_WRITE_ROLES = [...MANAGE_ROLES, 'engineering_crew'];
+ 
 // ── POST /api/maintenance/orders ─────────────────────────────
 router.post('/orders', async (req, res) => {
   const { vessel_id, system, component, description, error_codes, priority } = req.body;
@@ -32,22 +33,22 @@ router.post('/orders', async (req, res) => {
       })
       .select()
       .single();
-
+ 
     if (error) throw error;
-
+ 
     const { data: vessel } = await supabase
       .from('vessels')
       .select('name')
       .eq('id', vessel_id)
       .single();
-
+ 
     const { data: managers } = await supabase
       .from('users')
       .select('id, full_name, email')
       .eq('company_id', req.user.company_id)
       .in('role', ['overlordadmin', 'port_engineer', 'vessel_ops_manager', 'company_admin'])
       .eq('active', true);
-
+ 
     if (managers && managers.length > 0) {
       await supabase.from('notifications').insert(
         managers.map(m => ({
@@ -60,7 +61,7 @@ router.post('/orders', async (req, res) => {
           read: false
         }))
       );
-
+ 
       await sendMaintenanceAlert({
         managers,
         submitterName: req.user.full_name,
@@ -72,14 +73,14 @@ router.post('/orders', async (req, res) => {
         orderId: order.id
       });
     }
-
+ 
     res.status(201).json({ message: 'Maintenance order submitted', order });
   } catch (err) {
     console.error('POST orders error:', err.message);
     res.status(500).json({ error: 'Failed to submit maintenance order', detail: err.message });
   }
 });
-
+ 
 // ── GET /api/maintenance/orders ──────────────────────────────
 router.get('/orders', async (req, res) => {
   try {
@@ -89,9 +90,9 @@ router.get('/orders', async (req, res) => {
       .select('*, vessel:vessels(id,name)')
       .eq('company_id', req.user.company_id)
       .order('created_at', { ascending: false });
-
+ 
     if (status) query = query.eq('status', status);
-
+ 
     const { data, error } = await query;
     if (error) throw error;
     res.json({ orders: data });
@@ -100,7 +101,7 @@ router.get('/orders', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch orders' });
   }
 });
-
+ 
 // ── PUT /api/maintenance/orders/:id/dismiss ──────────────────
 router.put('/orders/:id/dismiss', requireRole(MANAGE_ROLES), async (req, res) => {
   const { note } = req.body;
@@ -110,21 +111,21 @@ router.put('/orders/:id/dismiss', requireRole(MANAGE_ROLES), async (req, res) =>
       .update({ status: 'dismissed', review_note: note || null, reviewed_by: req.user.id })
       .eq('id', req.params.id)
       .eq('company_id', req.user.company_id);
-
+ 
     if (error) throw error;
-
+ 
     await supabase.from('notifications')
       .update({ read: true })
       .eq('reference_id', req.params.id)
       .eq('company_id', req.user.company_id);
-
+ 
     res.json({ message: 'Order dismissed' });
   } catch (err) {
     console.error('PUT dismiss error:', err.message);
     res.status(500).json({ error: 'Failed to dismiss order' });
   }
 });
-
+ 
 // ── PUT /api/maintenance/orders/:id/approve ──────────────────
 router.put('/orders/:id/approve', requireRole(MANAGE_ROLES), async (req, res) => {
   const { priority, assigned_to, parts_needed, notes } = req.body;
@@ -135,9 +136,9 @@ router.put('/orders/:id/approve', requireRole(MANAGE_ROLES), async (req, res) =>
       .eq('id', req.params.id)
       .eq('company_id', req.user.company_id)
       .single();
-
+ 
     if (fetchErr || !order) return res.status(404).json({ error: 'Order not found' });
-
+ 
     const { data: logEntry, error: logErr } = await supabase
       .from('maintenance_log')
       .insert({
@@ -157,9 +158,9 @@ router.put('/orders/:id/approve', requireRole(MANAGE_ROLES), async (req, res) =>
       })
       .select()
       .single();
-
+ 
     if (logErr) throw logErr;
-
+ 
     await supabase.from('work_order_history').insert({
       company_id: req.user.company_id,
       maintenance_log_id: logEntry.id,
@@ -168,23 +169,23 @@ router.put('/orders/:id/approve', requireRole(MANAGE_ROLES), async (req, res) =>
       new_status: 'open',
       note: 'Work order created'
     });
-
+ 
     await supabase.from('maintenance_orders')
       .update({ status: 'approved', reviewed_by: req.user.id, maintenance_log_id: logEntry.id })
       .eq('id', req.params.id);
-
+ 
     await supabase.from('notifications')
       .update({ read: true })
       .eq('reference_id', req.params.id)
       .eq('company_id', req.user.company_id);
-
+ 
     res.json({ message: 'Approved and added to maintenance log', log_entry: logEntry });
   } catch (err) {
     console.error('PUT approve error:', err.message);
     res.status(500).json({ error: 'Failed to approve order', detail: err.message });
   }
 });
-
+ 
 // ── GET /api/maintenance/log ─────────────────────────────────
 router.get('/log', requireRole(ENG_READ_ROLES), async (req, res) => {
   try {
@@ -194,10 +195,10 @@ router.get('/log', requireRole(ENG_READ_ROLES), async (req, res) => {
       .select('*, vessel:vessels(id,name)')
       .eq('company_id', req.user.company_id)
       .order('created_at', { ascending: false });
-
+ 
     if (vessel_id) query = query.eq('vessel_id', vessel_id);
     if (status) query = query.eq('status', status);
-
+ 
     const { data, error } = await query;
     if (error) throw error;
     res.json({ entries: data });
@@ -206,9 +207,9 @@ router.get('/log', requireRole(ENG_READ_ROLES), async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch maintenance log' });
   }
 });
-
+ 
 // ── PUT /api/maintenance/log/:id ─────────────────────────────
-router.put('/log/:id', requireRole(MANAGE_ROLES), async (req, res) => {
+router.put('/log/:id', requireRole(ENG_WRITE_ROLES), async (req, res) => {
   const { status, assigned_to, parts_needed, notes, work_performed } = req.body;
   const allowed = ['open', 'in_progress', 'awaiting_parts', 'complete'];
   if (status && !allowed.includes(status)) {
@@ -220,7 +221,7 @@ router.put('/log/:id', requireRole(MANAGE_ROLES), async (req, res) => {
       .select('status')
       .eq('id', req.params.id)
       .single();
-
+ 
     const updates = {};
     if (status) updates.status = status;
     if (assigned_to !== undefined) updates.assigned_to = assigned_to;
@@ -228,7 +229,7 @@ router.put('/log/:id', requireRole(MANAGE_ROLES), async (req, res) => {
     if (notes !== undefined) updates.notes = notes;
     if (work_performed !== undefined) updates.work_performed = work_performed;
     if (status === 'complete') updates.completed_at = new Date().toISOString();
-
+ 
     const { data, error } = await supabase
       .from('maintenance_log')
       .update(updates)
@@ -236,9 +237,9 @@ router.put('/log/:id', requireRole(MANAGE_ROLES), async (req, res) => {
       .eq('company_id', req.user.company_id)
       .select()
       .single();
-
+ 
     if (error) throw error;
-
+ 
     if (status && existing && existing.status !== status) {
       const histRes = await supabase.from('work_order_history').insert({
         company_id: req.user.company_id,
@@ -250,14 +251,14 @@ router.put('/log/:id', requireRole(MANAGE_ROLES), async (req, res) => {
       });
       console.log('History insert:', histRes.error ? histRes.error.message : 'OK');
     }
-
+ 
     res.json({ message: 'Work order updated', entry: data });
   } catch (err) {
     console.error('PUT log error:', err.message);
     res.status(500).json({ error: 'Failed to update work order' });
   }
 });
-
+ 
 // ── GET /api/maintenance/notifications ───────────────────────
 router.get('/notifications', async (req, res) => {
   try {
@@ -268,7 +269,7 @@ router.get('/notifications', async (req, res) => {
       .eq('company_id', req.user.company_id)
       .order('created_at', { ascending: false })
       .limit(50);
-
+ 
     if (error) throw error;
     const unread = (data || []).filter(n => !n.read).length;
     res.json({ notifications: data || [], unread });
@@ -277,7 +278,7 @@ router.get('/notifications', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch notifications' });
   }
 });
-
+ 
 // ── PUT /api/maintenance/notifications/read-all ──────────────
 router.put('/notifications/read-all', async (req, res) => {
   try {
@@ -291,5 +292,5 @@ router.put('/notifications/read-all', async (req, res) => {
     res.status(500).json({ error: 'Failed to mark notifications read' });
   }
 });
-
+ 
 module.exports = router;
