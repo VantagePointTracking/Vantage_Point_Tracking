@@ -613,22 +613,14 @@ select option{background:var(--surface2);color:var(--cream)}
     <div style="display:flex;gap:8px;margin-bottom:1rem">
       <button type="button" onclick="openVesselWorkOrder()" class="btn btn-primary btn-sm" style="flex:1"><i class="ti ti-alert-triangle"></i> Submit Work Order</button>
     </div>
-    <!-- Engine service schedule -->
+    <!-- Engine service schedule — auto-loads from vessel configured engines -->
     <div class="card" style="margin-bottom:1rem">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;text-transform:uppercase">Engine Service Schedule</div>
+        <div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;text-transform:uppercase">Engine Service Schedules</div>
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:12px">
-        <select id="vd-engine-model" onchange="updateEngineSchedule()" style="flex:1;font-size:13px;padding:8px">
-          <option value="">Select engine model...</option>
-          <option value="Caterpillar C18">Caterpillar C18</option>
-          <option value="Cummins QSL9">Cummins QSL9</option>
-          <option value="Cummins X15">Cummins X15</option>
-          <option value="Marine Generator">Marine Generator</option>
-        </select>
-        <input type="number" id="vd-engine-hours" placeholder="Current hrs" onchange="updateEngineSchedule()" oninput="updateEngineSchedule()" style="width:120px;font-size:13px;padding:8px">
+      <div id="vd-engine-schedule-list">
+        <div class="empty-state" style="font-size:13px">Loading engine schedules...</div>
       </div>
-      <div id="vd-engine-schedule"><div class="empty-state" style="font-size:13px">Select your engine model to see the OEM service schedule.</div></div>
     </div>
     <div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:10px">Work Orders</div>
     <div class="card" id="vd-maintenance-list"><div class="empty-state">Loading maintenance orders...</div></div>
@@ -3118,7 +3110,10 @@ function switchVesselTab(tab, el) {
   if (tripsDiv) tripsDiv.style.display = tab === 'trips' ? 'block' : 'none';
   if (maintDiv) maintDiv.style.display = tab === 'maintenance' ? 'block' : 'none';
   if (tab === 'trips') loadVesselTrips();
-  if (tab === 'maintenance') loadVesselMaintenance();
+  if (tab === 'maintenance') {
+    loadVesselMaintenance();
+    loadVesselEngineSchedules(currentVesselDetailId);
+  }
 }
 
 async function loadVesselTrips() {
@@ -3344,7 +3339,7 @@ async function markOrderComplete(logId) {
 
 
 // ── MARINE DIESEL ENGINE SERVICE SPECS (from OEM manuals) ──
-const ENGINE_SERVICE_SPECS = {"Caterpillar C18": [{"task": "Engine Oil & Filter Change", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Engine Oil Sample", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Racor (Primary) Fuel Filter", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Secondary Fuel Filter", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Engine Air Filter (Clean/Replace)", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Crankcase Breather Clean", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Coolant Level & Additive Check", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Coolant Sample", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Auxiliary Water Pump Impeller", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Engine Belts (Inspect/Adjust)", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Battery Electrolyte & Voltage", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Hoses & Clamps Inspection", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Aftercooler Core Clean/Bench Test", "hours": 1000, "months": 48, "category": "Major"}, {"task": "Heat Exchanger Inspect/Clean", "hours": 1000, "months": 48, "category": "Major"}, {"task": "Turbocharger Inspection", "hours": 1000, "months": 48, "category": "Major"}, {"task": "CCV Fumes Disposal Filter Replace", "hours": 1000, "months": 48, "category": "Major"}, {"task": "Coolant System Flush & Replace", "hours": 3000, "months": 72, "category": "Overhaul"}, {"task": "Water Temp Regulator (Thermostat)", "hours": 3000, "months": 72, "category": "Overhaul"}, {"task": "Engine Valve Lash Adjustment", "hours": 3000, "months": 72, "category": "Overhaul"}, {"task": "Fuel Injectors Inspect/Adjust", "hours": 3000, "months": 72, "category": "Overhaul"}, {"task": "Crankshaft Vibration Damper Inspect", "hours": 3000, "months": 72, "category": "Overhaul"}, {"task": "Engine Mounts Inspection", "hours": 3000, "months": 72, "category": "Overhaul"}, {"task": "Starter Motor Inspect/Replace", "hours": 3000, "months": 72, "category": "Overhaul"}, {"task": "Alternator Inspect/Replace", "hours": 3000, "months": 72, "category": "Overhaul"}, {"task": "Oil Cooler Core Inspect", "hours": 3000, "months": 72, "category": "Overhaul"}, {"task": "Zinc Anode Replace", "hours": 250, "months": 6, "category": "Routine"}], "Cummins QSL9": [{"task": "Zinc Anode Replace", "hours": 250, "months": 6, "category": "Routine"}, {"task": "Engine Oil & Filter (ULSD)", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Engine Air Cleaner Clean", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Spin-On Fuel Filter Replace", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Fuel-Water Separator (Racor)", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Seawater Pump Impeller Replace", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Seawater Hoses Check", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Coolant Filter Change", "hours": 500, "months": 12, "category": "Routine"}, {"task": "SCA & Antifreeze Concentration", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Radiator/HX Pressure Cap Inspect", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Battery Cables & Connections", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Engine Wiring Harness Check", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Turbocharger Check", "hours": 1500, "months": 12, "category": "Major"}, {"task": "Aftercooler Assembly (Seawater)", "hours": "", "months": 36, "category": "Major"}, {"task": "Cooling System Flush", "hours": 2000, "months": 48, "category": "Overhaul"}, {"task": "Vibration Damper Check", "hours": 2000, "months": 48, "category": "Overhaul"}, {"task": "Overhead Set (Valve Lash) Adjust", "hours": 5000, "months": "", "category": "Overhaul"}], "Cummins X15": [{"task": "Zinc Anode Replace", "hours": 250, "months": 6, "category": "Routine"}, {"task": "Engine Oil & Filter", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Engine Air Cleaner Clean", "hours": 1500, "months": 12, "category": "Routine"}, {"task": "Spin-On Fuel Filter Replace", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Fuel-Water Separator (Racor)", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Seawater Pump Impeller Replace", "hours": 1500, "months": 12, "category": "Routine"}, {"task": "Seawater Hoses Check", "hours": 1500, "months": 12, "category": "Routine"}, {"task": "Coolant Filter Change", "hours": 1500, "months": 12, "category": "Routine"}, {"task": "SCA & Antifreeze Concentration", "hours": 1500, "months": 12, "category": "Routine"}, {"task": "HX Pressure Cap Inspect", "hours": 1500, "months": 12, "category": "Routine"}, {"task": "Battery Cables & Connections", "hours": 1500, "months": 12, "category": "Routine"}, {"task": "Engine Wiring Harness Check", "hours": 1500, "months": 12, "category": "Routine"}, {"task": "Turbocharger Check", "hours": 1500, "months": 12, "category": "Major"}, {"task": "Crankcase Breather Element", "hours": 1500, "months": 12, "category": "Routine"}, {"task": "Aftercooler Assembly (Seawater)", "hours": 1500, "months": 36, "category": "Major"}, {"task": "Cooling System Flush", "hours": 2000, "months": 48, "category": "Overhaul"}, {"task": "Vibration Damper Check", "hours": 2000, "months": 48, "category": "Overhaul"}, {"task": "Overhead Set (Valve Lash) Adjust", "hours": 5000, "months": "", "category": "Overhaul"}], "Marine Generator": [{"task": "Engine Oil & Filter", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Fuel Filter Replace", "hours": 250, "months": 12, "category": "Routine"}, {"task": "Air Filter Inspect/Replace", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Coolant Sample & Top-Up", "hours": 500, "months": 12, "category": "Routine"}, {"task": "Impeller Inspect/Replace", "hours": 1000, "months": 24, "category": "Routine"}, {"task": "Coolant Flush", "hours": 2000, "months": 48, "category": "Overhaul"}, {"task": "Zinc Anode Replace", "hours": "", "months": 6, "category": "Routine"}, {"task": "Belt Inspect/Adjust", "hours": 500, "months": 12, "category": "Routine"}]};
+const ENGINE_SERVICE_SPECS = {"Caterpillar C18":[{"task":"Engine Oil & Filter Change","hours":250,"months":12,"category":"Routine"},{"task":"Engine Oil Sample","hours":250,"months":12,"category":"Routine"},{"task":"Racor (Primary) Fuel Filter","hours":250,"months":12,"category":"Routine"},{"task":"Secondary Fuel Filter","hours":250,"months":12,"category":"Routine"},{"task":"Engine Air Filter (Clean/Replace)","hours":250,"months":12,"category":"Routine"},{"task":"Crankcase Breather Clean","hours":250,"months":12,"category":"Routine"},{"task":"Coolant Level & Additive Check","hours":250,"months":12,"category":"Routine"},{"task":"Coolant Sample","hours":250,"months":12,"category":"Routine"},{"task":"Auxiliary Water Pump Impeller","hours":250,"months":12,"category":"Routine"},{"task":"Engine Belts (Inspect/Adjust)","hours":250,"months":12,"category":"Routine"},{"task":"Battery Electrolyte & Voltage","hours":250,"months":12,"category":"Routine"},{"task":"Hoses & Clamps Inspection","hours":250,"months":12,"category":"Routine"},{"task":"Aftercooler Core Clean/Bench Test","hours":1000,"months":48,"category":"Major"},{"task":"Heat Exchanger Inspect/Clean","hours":1000,"months":48,"category":"Major"},{"task":"Turbocharger Inspection","hours":1000,"months":48,"category":"Major"},{"task":"CCV Fumes Disposal Filter Replace","hours":1000,"months":48,"category":"Major"},{"task":"Coolant System Flush & Replace","hours":3000,"months":72,"category":"Overhaul"},{"task":"Water Temp Regulator (Thermostat)","hours":3000,"months":72,"category":"Overhaul"},{"task":"Engine Valve Lash Adjustment","hours":3000,"months":72,"category":"Overhaul"},{"task":"Fuel Injectors Inspect/Adjust","hours":3000,"months":72,"category":"Overhaul"},{"task":"Crankshaft Vibration Damper Inspect","hours":3000,"months":72,"category":"Overhaul"},{"task":"Engine Mounts Inspection","hours":3000,"months":72,"category":"Overhaul"},{"task":"Starter Motor Inspect/Replace","hours":3000,"months":72,"category":"Overhaul"},{"task":"Alternator Inspect/Replace","hours":3000,"months":72,"category":"Overhaul"},{"task":"Oil Cooler Core Inspect","hours":3000,"months":72,"category":"Overhaul"},{"task":"Zinc Anode Replace","hours":250,"months":6,"category":"Routine"}],"Cummins QSL9":[{"task":"Zinc Anode Replace","hours":250,"months":6,"category":"Routine"},{"task":"Engine Oil & Filter (ULSD)","hours":500,"months":12,"category":"Routine"},{"task":"Engine Air Cleaner Clean","hours":500,"months":12,"category":"Routine"},{"task":"Spin-On Fuel Filter Replace","hours":500,"months":12,"category":"Routine"},{"task":"Fuel-Water Separator (Racor)","hours":500,"months":12,"category":"Routine"},{"task":"Seawater Pump Impeller Replace","hours":500,"months":12,"category":"Routine"},{"task":"Seawater Hoses Check","hours":500,"months":12,"category":"Routine"},{"task":"Coolant Filter Change","hours":500,"months":12,"category":"Routine"},{"task":"SCA & Antifreeze Concentration","hours":500,"months":12,"category":"Routine"},{"task":"Radiator/HX Pressure Cap Inspect","hours":500,"months":12,"category":"Routine"},{"task":"Battery Cables & Connections","hours":500,"months":12,"category":"Routine"},{"task":"Engine Wiring Harness Check","hours":500,"months":12,"category":"Routine"},{"task":"Turbocharger Check","hours":1500,"months":12,"category":"Major"},{"task":"Aftercooler Assembly (Seawater)","hours":"","months":36,"category":"Major"},{"task":"Cooling System Flush","hours":2000,"months":48,"category":"Overhaul"},{"task":"Vibration Damper Check","hours":2000,"months":48,"category":"Overhaul"},{"task":"Overhead Set (Valve Lash) Adjust","hours":5000,"months":"","category":"Overhaul"}],"Cummins X15":[{"task":"Zinc Anode Replace","hours":250,"months":6,"category":"Routine"},{"task":"Engine Oil & Filter","hours":500,"months":12,"category":"Routine"},{"task":"Engine Air Cleaner Clean","hours":1500,"months":12,"category":"Routine"},{"task":"Spin-On Fuel Filter Replace","hours":500,"months":12,"category":"Routine"},{"task":"Fuel-Water Separator (Racor)","hours":500,"months":12,"category":"Routine"},{"task":"Seawater Pump Impeller Replace","hours":1500,"months":12,"category":"Routine"},{"task":"Seawater Hoses Check","hours":1500,"months":12,"category":"Routine"},{"task":"Coolant Filter Change","hours":1500,"months":12,"category":"Routine"},{"task":"SCA & Antifreeze Concentration","hours":1500,"months":12,"category":"Routine"},{"task":"HX Pressure Cap Inspect","hours":1500,"months":12,"category":"Routine"},{"task":"Battery Cables & Connections","hours":1500,"months":12,"category":"Routine"},{"task":"Engine Wiring Harness Check","hours":1500,"months":12,"category":"Routine"},{"task":"Turbocharger Check","hours":1500,"months":12,"category":"Major"},{"task":"Crankcase Breather Element","hours":1500,"months":12,"category":"Routine"},{"task":"Aftercooler Assembly (Seawater)","hours":1500,"months":36,"category":"Major"},{"task":"Cooling System Flush","hours":2000,"months":48,"category":"Overhaul"},{"task":"Vibration Damper Check","hours":2000,"months":48,"category":"Overhaul"},{"task":"Overhead Set (Valve Lash) Adjust","hours":5000,"months":"","category":"Overhaul"}],"Marine Generator":[{"task":"Engine Oil & Filter","hours":250,"months":12,"category":"Routine"},{"task":"Fuel Filter Replace","hours":250,"months":12,"category":"Routine"},{"task":"Air Filter Inspect/Replace","hours":500,"months":12,"category":"Routine"},{"task":"Coolant Sample & Top-Up","hours":500,"months":12,"category":"Routine"},{"task":"Impeller Inspect/Replace","hours":1000,"months":24,"category":"Routine"},{"task":"Coolant Flush","hours":2000,"months":48,"category":"Overhaul"},{"task":"Zinc Anode Replace","hours":"","months":6,"category":"Routine"},{"task":"Belt Inspect/Adjust","hours":500,"months":12,"category":"Routine"}],"Northern Lights Generator":[{"task":"Zinc Anode Replace","hours":"","months":6,"category":"Routine"},{"task":"Engine Oil & Filter Change","hours":150,"months":12,"category":"Routine"},{"task":"Oil Sample","hours":150,"months":12,"category":"Routine"},{"task":"Fuel Filter (Primary/Racor)","hours":250,"months":12,"category":"Routine"},{"task":"Fuel Filter (Secondary)","hours":250,"months":12,"category":"Routine"},{"task":"Seawater Pump Impeller","hours":250,"months":12,"category":"Routine"},{"task":"Raw Water Strainer Clean","hours":250,"months":12,"category":"Routine"},{"task":"Drive Belt Inspect/Adjust","hours":250,"months":12,"category":"Routine"},{"task":"Battery & Charging System Check","hours":250,"months":12,"category":"Routine"},{"task":"Air Filter Inspect/Clean","hours":500,"months":12,"category":"Routine"},{"task":"Coolant Level & Concentration","hours":500,"months":12,"category":"Routine"},{"task":"Hose & Clamp Inspection","hours":500,"months":12,"category":"Routine"},{"task":"Exhaust System Inspect","hours":500,"months":12,"category":"Routine"},{"task":"Heat Exchanger Inspect/Clean","hours":1000,"months":24,"category":"Major"},{"task":"Injectors Inspect/Test","hours":1000,"months":24,"category":"Major"},{"task":"Thermostat Replace","hours":1000,"months":24,"category":"Major"},{"task":"Coolant System Flush & Refill","hours":2000,"months":48,"category":"Overhaul"},{"task":"Valve Clearance Adjust","hours":2000,"months":48,"category":"Overhaul"},{"task":"Starter Motor Inspect","hours":2000,"months":48,"category":"Overhaul"},{"task":"Alternator Output Test","hours":2000,"months":48,"category":"Overhaul"}]};
 
 function getEngineSchedule(model) {
   // Fuzzy match the engine model
@@ -3881,9 +3876,81 @@ function buildComplianceHTML(d) {
 }
 
 
+async function loadVesselEngineSchedules(vesselId) {
+  const el = document.getElementById('vd-engine-schedule-list');
+  if (!el) return;
+  el.innerHTML = '<div class="empty-state"><span class="spinner spinner-dark"></span></div>';
+  try {
+    const res = await fetch(API + '/api/fleet/engines?vessel_id=' + vesselId, {
+      headers: {'Authorization': 'Bearer ' + token}
+    });
+    const data = await res.json();
+    const engines = data.engines || [];
+
+    if (!engines.length) {
+      el.innerHTML = '<div class="empty-state" style="font-size:13px">No engines configured for this vessel. Contact your port engineer to set up the engine profile.</div>';
+      return;
+    }
+
+    // Separate propulsion engines from generators
+    const propulsion = engines.filter(e => !e.position.startsWith('generator'));
+    const generators = engines.filter(e => e.position.startsWith('generator'));
+
+    const posLabel = (pos) => {
+      const map = { port:'Port', starboard:'Starboard', center:'Center', generator_1:'Generator 1', generator_2:'Generator 2', generator_3:'Generator 3' };
+      return map[pos] || pos.charAt(0).toUpperCase() + pos.slice(1);
+    };
+
+    const renderEngineCard = (eng) => {
+      const inputId = 'eng-hrs-' + eng.id;
+      const schedId = 'eng-sched-' + eng.id;
+      const tasks = getEngineSchedule(eng.engine_model);
+      const isGen = eng.position.startsWith('generator');
+      const accentColor = isGen ? 'var(--steel)' : 'var(--gold)';
+      return '<div style="margin-bottom:16px;border:1px solid var(--border);border-radius:8px;overflow:hidden">' +
+        '<div style="background:var(--surface2);padding:10px 14px;display:flex;justify-content:space-between;align-items:center">' +
+        '<div>' +
+        '<div style="font-size:13px;font-weight:600;color:' + accentColor + '">' + posLabel(eng.position) + ' Engine</div>' +
+        '<div style="font-size:11px;color:var(--steel);margin-top:2px">' + eng.engine_model + '</div>' +
+        '</div>' +
+        '<div style="display:flex;align-items:center;gap:8px">' +
+        '<input type="number" id="' + inputId + '" placeholder="Current hrs" ' +
+        'oninput="renderEngineScheduleInline(\'' + schedId + '\',\'' + eng.engine_model.replace(/'/g,"\\'") + '\',this.value)" ' +
+        'style="width:110px;padding:6px 10px;font-size:13px;background:var(--surface);color:var(--cream);border:1px solid var(--border);border-radius:6px">' +
+        '<span style="font-size:11px;color:var(--steel)">hrs</span>' +
+        '</div></div>' +
+        '<div id="' + schedId + '" style="padding:10px 14px">' +
+        (tasks.length
+          ? '<div style="font-size:12px;color:var(--steel)">Enter current hours above to see service status.</div>'
+          : '<div style="font-size:12px;color:var(--steel)">No OEM schedule found for ' + eng.engine_model + '. Upload the Excel database to add it.</div>') +
+        '</div></div>';
+    };
+
+    let html = '';
+    if (propulsion.length) {
+      html += '<div style="font-size:11px;font-weight:600;color:var(--gold);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:8px">Propulsion Engines</div>';
+      html += propulsion.map(renderEngineCard).join('');
+    }
+    if (generators.length) {
+      html += '<div style="font-size:11px;font-weight:600;color:var(--steel);letter-spacing:0.5px;text-transform:uppercase;margin-top:12px;margin-bottom:8px">Generators</div>';
+      html += generators.map(renderEngineCard).join('');
+    }
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = '<div class="empty-state" style="color:var(--red)">Failed to load engine schedules.</div>';
+  }
+}
+
+function renderEngineScheduleInline(schedId, model, currentHours) {
+  const el = document.getElementById(schedId);
+  if (!el) return;
+  el.innerHTML = renderEngineSchedule(model, currentHours);
+}
+
+// Keep for backward compatibility
 function updateEngineSchedule() {
-  const model = document.getElementById('vd-engine-model').value;
-  const hours = document.getElementById('vd-engine-hours').value;
+  const model = document.getElementById('vd-engine-model') ? document.getElementById('vd-engine-model').value : '';
+  const hours = document.getElementById('vd-engine-hours') ? document.getElementById('vd-engine-hours').value : '';
   const el = document.getElementById('vd-engine-schedule');
   if (el) el.innerHTML = renderEngineSchedule(model, hours);
 }
