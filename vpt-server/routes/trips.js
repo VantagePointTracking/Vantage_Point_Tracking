@@ -131,7 +131,67 @@ router.post('/:id/predeparture', async (req, res) => {
       .update({ status: 'active', departure_time: new Date().toISOString() })
       .eq('id', trip.id);
 
-    res.json({ message: 'Pre-departure submitted, trip is now active' });
+    // Auto-create maintenance orders for flagged pre-departure items
+    const flaggedItems = (check_items || []).filter(item =>
+      item.flag && item.flag !== 'ok' && item.checked
+    );
+
+    if (flaggedItems.length > 0) {
+      const { data: vessel } = await supabase
+        .from('vessels').select('name').eq('id', trip.vessel_id).single();
+
+      const { data: managers } = await supabase
+        .from('users')
+        .select('id, full_name, email')
+        .eq('company_id', req.user.company_id)
+        .in('role', ['overlordadmin','company_admin','port_engineer','vessel_ops_manager'])
+        .eq('active', true);
+
+      for (const item of flaggedItems) {
+        const label = item.item_key || item.label || 'Pre-departure check item';
+        const system = label.includes('engine') || label.includes('Engine') ? 'Main Engine'
+          : label.includes('fuel') || label.includes('Fuel') ? 'Fuel System'
+          : label.includes('fire') || label.includes('Fire') ? 'Fire Suppression'
+          : label.includes('bilge') || label.includes('Bilge') ? 'Bilge System'
+          : label.includes('steer') || label.includes('Steer') ? 'Steering'
+          : label.includes('navig') || label.includes('Navig') ? 'Navigation Equipment'
+          : 'Safety Equipment';
+
+        const { data: order } = await supabase
+          .from('maintenance_orders')
+          .insert({
+            company_id: req.user.company_id,
+            vessel_id: trip.vessel_id,
+            submitted_by: req.user.id,
+            submitter_name: req.user.full_name,
+            system,
+            component: label,
+            description: `Flagged during pre-departure checklist by ${req.user.full_name}. Item: ${label}. Flag: ${item.flag}.`,
+            priority: item.flag === 'critical' ? 'high' : 'medium',
+            status: 'pending_review'
+          })
+          .select().single();
+
+        if (order && managers && managers.length > 0) {
+          await supabase.from('notifications').insert(
+            managers.map(m => ({
+              company_id: req.user.company_id,
+              user_id: m.id,
+              type: 'maintenance_order',
+              title: '⚠️ Pre-departure flag',
+              message: `${req.user.full_name} flagged "${label}" on ${vessel?.name || 'a vessel'} during pre-departure checklist`,
+              reference_id: order.id,
+              read: false
+            }))
+          );
+        }
+      }
+    }
+
+    res.json({
+      message: 'Pre-departure submitted, trip is now active',
+      flags_raised: flaggedItems.length
+    });
   } catch (err) {
     console.error('POST predeparture error:', err.message);
     res.status(500).json({ error: 'Failed to submit pre-departure', detail: err.message });

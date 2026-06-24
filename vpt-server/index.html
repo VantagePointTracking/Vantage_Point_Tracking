@@ -190,6 +190,7 @@ select option{background:var(--surface2);color:var(--cream)}
 .role-switch-opt{display:block;width:100%;text-align:left;padding:8px 10px;background:none;border:none;color:var(--cream);font-size:13px;cursor:pointer;border-radius:6px;font-family:inherit}
 .role-switch-opt:hover{background:var(--surface2);color:var(--gold)}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -695,8 +696,9 @@ select option{background:var(--surface2);color:var(--cream)}
   <div style="padding:1rem;max-width:700px;margin:0 auto">
 
     <!-- Locked banner -->
-    <div id="tt-locked-banner" style="display:none;background:rgba(201,168,76,0.1);border:1px solid var(--gold);border-radius:8px;padding:10px 14px;margin-bottom:1rem;font-size:13px;color:var(--gold)">
-      <i class="ti ti-lock"></i> This ticket is locked — trip has been closed. Viewing read-only.
+    <div id="tt-locked-banner" style="display:none;background:rgba(201,168,76,0.1);border:1px solid var(--gold);border-radius:8px;padding:10px 14px;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <span style="font-size:13px;color:var(--gold)"><i class="ti ti-lock"></i> Locked — trip closed. Viewing read-only.</span>
+      <button id="tt-unlock-btn" onclick="unlockTripTicket()" style="display:none;font-size:12px;padding:4px 12px;border-radius:6px;border:1px solid var(--gold);background:transparent;color:var(--gold);cursor:pointer;white-space:nowrap">Unlock to Edit</button>
     </div>
 
     <!-- Header info -->
@@ -887,8 +889,8 @@ select option{background:var(--surface2);color:var(--cream)}
 
       <div class="form-group" style="margin-bottom:1rem">
         <label>Or upload documents (PDF, JPG, PNG)</label>
-        <input type="file" id="ai-onboard-files" multiple accept=".pdf,.jpg,.jpeg,.png" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-size:13px">
-        <div style="font-size:11px;color:var(--steel);margin-top:4px">Documents are read once to extract vessel info, then discarded.</div>
+        <input type="file" id="ai-onboard-files" multiple accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls,.csv" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-size:13px">
+        <div style="font-size:11px;color:var(--steel);margin-top:4px">Supports PDF, images, Excel (.xlsx/.xls), and CSV. Documents are read once to extract vessel info, then discarded.</div>
       </div>
 
       <button type="button" id="ai-onboard-btn" onclick="runAIOnboard()" style="width:100%;padding:14px;background:var(--gold);color:#1a1a1a;font-weight:700;border:none;border-radius:8px;cursor:pointer">
@@ -3199,40 +3201,84 @@ async function loadVesselMaintenance() {
   if (!vesselId) { el.innerHTML = '<div class="empty-state">No vessel selected.</div>'; return; }
   el.innerHTML = '<div class="empty-state"><span class="spinner spinner-dark"></span></div>';
   const canManage = ['overlordadmin','company_admin','port_engineer','vessel_ops_manager'].includes(currentUser ? currentUser.role : '');
+
   try {
-    const res = await fetch(API + '/api/maintenance/orders', {headers: {'Authorization': 'Bearer ' + token}});
-    const data = await res.json();
-    const orders = (data.orders || []).filter(o => o.vessel_id === vesselId).sort((a,b) => new Date(b.created_at)-new Date(a.created_at));
-    if (!orders.length) { el.innerHTML = '<div class="empty-state">No maintenance orders for this vessel.</div>'; return; }
-    el.innerHTML = orders.map(o => {
-      const date = new Date(o.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-      const statusColors = { pending_review: 'var(--amber)', in_progress: 'var(--gold)', completed: 'var(--green)', dismissed: 'var(--steel)' };
-      const statusLabels = { pending_review: 'Pending Review', in_progress: 'In Progress', completed: 'Completed', dismissed: 'Dismissed' };
-      const priorityColors = { high: 'var(--red)', medium: 'var(--amber)', low: 'var(--steel)' };
-      const sc = statusColors[o.status] || 'var(--steel)';
-      const sl = statusLabels[o.status] || o.status;
-      const pc = priorityColors[o.priority] || 'var(--steel)';
-      const manageButtons = canManage ? '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">' +
-        (o.status === 'pending_review' ? '<button type="button" onclick="updateOrderStatus(\'' + o.id + '\',\'in_progress\')" style="padding:6px 12px;font-size:12px;border-radius:6px;border:1px solid var(--gold);background:rgba(201,168,76,0.1);color:var(--gold);cursor:pointer">Mark In Progress</button>' : '') +
-        (o.status === 'in_progress' ? '<button type="button" onclick="updateOrderStatus(\'' + o.id + '\',\'completed\')" style="padding:6px 12px;font-size:12px;border-radius:6px;border:1px solid var(--green);background:rgba(39,174,96,0.1);color:var(--green);cursor:pointer">Mark Complete</button>' : '') +
-        (o.status === 'pending_review' ? '<button type="button" onclick="updateOrderStatus(\'' + o.id + '\',\'dismissed\')" style="padding:6px 12px;font-size:12px;border-radius:6px;border:1px solid var(--steel);background:var(--surface2);color:var(--steel);cursor:pointer">Dismiss</button>' : '') +
-        '</div>' : '';
-      return '<div style="padding:14px 0;border-bottom:1px solid var(--border)">' +
-        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
-        '<div style="flex:1">' +
-        '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' +
-        '<span style="font-size:13px;font-weight:600;color:var(--cream)">' + o.system + '</span>' +
-        '<span style="font-size:10px;padding:2px 6px;border-radius:10px;border:1px solid ' + pc + ';color:' + pc + '">' + (o.priority||'medium') + '</span>' +
-        '</div>' +
-        '<div style="font-size:13px;color:var(--steel);margin-top:4px;line-height:1.4">' + o.description + '</div>' +
-        '<div style="font-size:11px;color:var(--steel);margin-top:4px">' + date + (o.submitter_name ? ' — ' + o.submitter_name : '') + '</div>' +
-        manageButtons +
-        '</div>' +
-        '<span style="font-size:11px;padding:3px 8px;border-radius:10px;border:1px solid ' + sc + ';color:' + sc + ';white-space:nowrap;flex-shrink:0">' + sl + '</span>' +
-        '</div></div>';
-    }).join('');
+    const [ordersRes, logRes] = await Promise.all([
+      fetch(API + '/api/maintenance/orders', {headers: {'Authorization':'Bearer '+token}}),
+      fetch(API + '/api/maintenance/log?vessel_id=' + vesselId, {headers: {'Authorization':'Bearer '+token}})
+    ]);
+    const ordersData = await ordersRes.json();
+    const logData = logRes.ok ? await logRes.json() : { entries: [] };
+
+    const orders = (ordersData.orders || []).filter(o => o.vessel_id === vesselId);
+    const logEntries = logData.entries || [];
+
+    // Open / pending orders
+    const openOrders = orders.filter(o => o.status === 'pending_review');
+    // Active work (in log, not complete)
+    const activeWork = logEntries.filter(e => e.status !== 'complete');
+    // Completed history
+    const completed = logEntries.filter(e => e.status === 'complete').sort((a,b) => new Date(b.completed_at)-new Date(a.completed_at));
+
+    const pc = (p) => ({ high:'var(--red)', medium:'var(--amber)', low:'var(--steel)' }[p] || 'var(--steel)');
+    const fmtDate = d => new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+
+    let html = '';
+
+    if (openOrders.length) {
+      html += '<div style="font-size:11px;font-weight:600;color:var(--amber);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:8px">Pending Review (' + openOrders.length + ')</div>';
+      html += openOrders.map(o => {
+        const approveBtn = canManage ? '<button type="button" onclick="approveOrder(\''+o.id+'\')" style="margin-top:8px;padding:5px 12px;font-size:12px;border-radius:6px;border:1px solid var(--gold);background:rgba(193,125,60,0.1);color:var(--gold);cursor:pointer">Review & Assign</button>' : '';
+        return '<div style="padding:12px 0;border-bottom:1px solid var(--border)">' +
+          '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
+          '<div><span style="font-weight:600;color:var(--cream)">' + o.system + (o.component?' — '+o.component:'') + '</span>' +
+          '<span style="font-size:10px;margin-left:8px;padding:2px 6px;border-radius:10px;border:1px solid '+pc(o.priority)+';color:'+pc(o.priority)+'">' + (o.priority||'medium') + '</span></div>' +
+          '<span style="font-size:11px;color:var(--steel)">' + fmtDate(o.created_at) + '</span></div>' +
+          '<div style="font-size:13px;color:var(--steel);margin-top:4px">' + o.description + '</div>' +
+          '<div style="font-size:11px;color:var(--steel);margin-top:2px">Reported by ' + (o.submitter_name||'Unknown') + '</div>' +
+          approveBtn + '</div>';
+      }).join('');
+    }
+
+    if (activeWork.length) {
+      html += '<div style="font-size:11px;font-weight:600;color:var(--gold);letter-spacing:0.5px;text-transform:uppercase;margin:16px 0 8px">Active Work Orders (' + activeWork.length + ')</div>';
+      html += activeWork.map(e => {
+        return '<div style="padding:12px 0;border-bottom:1px solid var(--border)">' +
+          '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
+          '<div><span style="font-weight:600;color:var(--cream)">' + e.system + (e.component?' — '+e.component:'') + '</span>' +
+          '<span style="font-size:10px;margin-left:8px;padding:2px 6px;border-radius:10px;border:1px solid '+pc(e.priority)+';color:'+pc(e.priority)+'">' + (e.priority||'medium') + '</span></div>' +
+          '<span style="font-size:11px;padding:2px 8px;border-radius:10px;border:1px solid var(--gold);color:var(--gold)">' + (e.status||'open').replace('_',' ') + '</span></div>' +
+          (e.assigned_to ? '<div style="font-size:12px;color:var(--gold);margin-top:3px"><i class="ti ti-user"></i> ' + e.assigned_to + '</div>' : '') +
+          '<div style="font-size:12px;color:var(--steel);margin-top:3px">' + e.description + '</div>' +
+          '</div>';
+      }).join('');
+    }
+
+    if (completed.length) {
+      html += '<div style="font-size:11px;font-weight:600;color:var(--green);letter-spacing:0.5px;text-transform:uppercase;margin:16px 0 8px">Completed History (' + completed.length + ')</div>';
+      html += completed.map(e => {
+        const parts = (e.parts_replaced || []);
+        const typeColor = e.failure_type === 'preventive' ? 'var(--green)' : e.failure_type === 'predictive' ? 'var(--gold)' : 'var(--red)';
+        return '<div style="padding:12px 0;border-bottom:1px solid var(--border)">' +
+          '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
+          '<div style="flex:1">' +
+          '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' +
+          '<span style="font-weight:600;color:var(--cream)">' + e.system + (e.component?' — '+e.component:'') + '</span>' +
+          (e.failure_type ? '<span style="font-size:10px;padding:2px 6px;border-radius:10px;border:1px solid '+typeColor+';color:'+typeColor+'">' + e.failure_type + '</span>' : '') +
+          '</div>' +
+          (e.root_cause ? '<div style="font-size:12px;color:var(--steel);margin-top:4px"><strong style="color:var(--cream)">Root cause:</strong> ' + e.root_cause + '</div>' : '') +
+          (e.work_performed ? '<div style="font-size:12px;color:var(--steel);margin-top:2px"><strong style="color:var(--cream)">Work done:</strong> ' + e.work_performed + '</div>' : '') +
+          (parts.length ? '<div style="font-size:12px;color:var(--steel);margin-top:2px"><strong style="color:var(--cream)">Parts:</strong> ' + parts.map(p=>p.description||p).join(', ') + '</div>' : '') +
+          (e.labor_hours ? '<div style="font-size:11px;color:var(--steel);margin-top:2px">' + e.labor_hours + ' hrs labor</div>' : '') +
+          '<div style="font-size:11px;color:var(--steel);margin-top:3px">' + (e.assigned_to||'Unknown') + ' — ' + fmtDate(e.completed_at||e.created_at) + '</div>' +
+          '</div></div></div>';
+      }).join('');
+    }
+
+    if (!html) html = '<div class="empty-state">No maintenance history for this vessel yet.</div>';
+    el.innerHTML = html;
   } catch(e) {
-    el.innerHTML = '<div class="empty-state" style="color:var(--red)">Failed to load maintenance orders.</div>';
+    el.innerHTML = '<div class="empty-state" style="color:var(--red)">Failed to load maintenance.</div>';
   }
 }
 
@@ -3350,38 +3396,99 @@ async function loadEngOrders(type) {
   }
 }
 
+async function unlockTripTicket() {
+  if (!confirm('Unlock this ticket for editing?')) return;
+  try {
+    const res = await fetch(API + '/api/trip-tickets/' + currentTripTicketId, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body: JSON.stringify({ status: 'draft' })
+    });
+    if (!res.ok) throw new Error('Failed');
+    ttIsLocked = false;
+    document.getElementById('tt-locked-banner').style.display = 'none';
+    document.getElementById('tt-action-btns').style.display = 'flex';
+    document.querySelectorAll('#screen-trip-ticket input, #screen-trip-ticket select, #screen-trip-ticket textarea')
+      .forEach(el => el.removeAttribute('disabled'));
+  } catch(e) { alert('Could not unlock: ' + e.message); }
+}
+
 async function claimOrder(logId) {
   try {
     const res = await fetch(API + '/api/maintenance/log/' + logId, {
       method: 'PUT',
-      headers: {'Content-Type':'application/json','Authorization':'Bearer ' + token},
-      body: JSON.stringify({
-        status: 'in_progress',
-        assigned_to: currentUser ? currentUser.full_name : 'Engineer'
-      })
+      headers: {'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body: JSON.stringify({ status: 'in_progress', assigned_to: currentUser ? currentUser.full_name : 'Engineer' })
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to claim');
-    switchEngTab('assigned', document.querySelector('#screen-engineering .nav-tab'));
-  } catch(e) { alert('Failed to claim order: ' + e.message); }
+    if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+    loadEngOrders('assigned');
+    switchEngTab('assigned', document.querySelectorAll('#screen-engineering .nav-tab')[0]);
+  } catch(e) { alert('Failed to claim: ' + e.message); }
 }
 
-async function markOrderComplete(logId) {
-  const notes = prompt('Briefly describe the work performed (required):');
-  if (notes === null) return; // cancelled
+function markOrderComplete(logId) {
+  const html = '<div style="padding:1.5rem;max-width:560px">' +
+    '<div style="font-size:16px;font-weight:600;color:var(--cream);margin-bottom:1rem">Complete Work Order</div>' +
+    '<div class="form-group"><label>Failure Type</label>' +
+    '<select id="wc-type" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px">' +
+    '<option value="corrective">Corrective — something broke</option>' +
+    '<option value="preventive">Preventive — scheduled service</option>' +
+    '<option value="predictive">Predictive — caught early</option>' +
+    '</select></div>' +
+    '<div class="form-group"><label>Root Cause <span class="required-star">*</span></label>' +
+    '<input type="text" id="wc-cause" placeholder="e.g. Worn impeller, failed sensor, oil leak at fitting..." style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px"></div>' +
+    '<div class="form-group"><label>Work Performed <span class="required-star">*</span></label>' +
+    '<textarea id="wc-work" rows="3" placeholder="Describe what was done..." style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-family:inherit;font-size:14px"></textarea></div>' +
+    '<div class="form-group"><label>Parts Replaced <span style="color:var(--steel);font-weight:400">(one per line, include part# if known)</span></label>' +
+    '<textarea id="wc-parts" rows="3" placeholder="LF3349 oil filter&#10;SCA coolant additive&#10;Raw water pump impeller" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-family:inherit;font-size:14px"></textarea></div>' +
+    '<div class="form-group"><label>Labor Hours</label>' +
+    '<input type="number" step="0.5" id="wc-hours" placeholder="e.g. 2.5" style="width:140px;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px"></div>' +
+    '<div id="wc-error" style="color:var(--red);font-size:13px;display:none;margin-bottom:10px"></div>' +
+    '<div style="display:flex;gap:10px">' +
+    '<button type="button" onclick="document.getElementById(\'wc-modal\').remove()" style="flex:1;padding:12px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;cursor:pointer">Cancel</button>' +
+    '<button type="button" onclick="submitWorkComplete(\'' + logId + '\')" style="flex:2;padding:12px;background:var(--green);color:#fff;font-weight:700;border:none;border-radius:8px;cursor:pointer"><i class="ti ti-check"></i> Mark Complete</button>' +
+    '</div></div>';
+
+  let modal = document.getElementById('wc-modal');
+  if (!modal) { modal = document.createElement('div'); modal.id = 'wc-modal'; document.body.appendChild(modal); }
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
+  const inner = document.createElement('div');
+  inner.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:12px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto';
+  inner.innerHTML = html;
+  modal.innerHTML = '';
+  modal.appendChild(inner);
+}
+
+async function submitWorkComplete(logId) {
+  const cause = (document.getElementById('wc-cause')||{}).value?.trim();
+  const work = (document.getElementById('wc-work')||{}).value?.trim();
+  const errEl = document.getElementById('wc-error');
+  if (!cause || !work) { errEl.textContent = 'Root cause and work performed are required.'; errEl.style.display = 'block'; return; }
+
+  const partsText = (document.getElementById('wc-parts')||{}).value || '';
+  const parts = partsText.split('\n').map(p => p.trim()).filter(Boolean).map(p => ({ description: p }));
+
   try {
     const res = await fetch(API + '/api/maintenance/log/' + logId, {
       method: 'PUT',
-      headers: {'Content-Type':'application/json','Authorization':'Bearer ' + token},
+      headers: {'Content-Type':'application/json','Authorization':'Bearer '+token},
       body: JSON.stringify({
         status: 'complete',
-        work_performed: notes || 'Completed by ' + (currentUser ? currentUser.full_name : 'engineer')
+        failure_type: document.getElementById('wc-type').value,
+        root_cause: cause,
+        work_performed: work,
+        parts_replaced: parts,
+        labor_hours: parseFloat(document.getElementById('wc-hours').value)||null,
+        resolution_notes: work
       })
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed');
+    if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+    document.getElementById('wc-modal')?.remove();
+    loadEngOrders('completed');
     switchEngTab('completed', document.querySelectorAll('#screen-engineering .nav-tab')[2]);
-  } catch(e) { alert('Failed to complete order: ' + e.message); }
+  } catch(e) {
+    if (errEl) { errEl.textContent = e.message; errEl.style.display = 'block'; }
+  }
 }
 
 
@@ -3813,9 +3920,16 @@ async function openTripTicket(tripId) {
     drills.forEach(d => addDrillRow(d));
 
     // Lock UI if trip is closed
+    // Always re-enable inputs first, then disable if locked
+    document.querySelectorAll('#screen-trip-ticket input, #screen-trip-ticket select, #screen-trip-ticket textarea')
+      .forEach(el => el.removeAttribute('disabled'));
+
     if (ttIsLocked) {
-      document.getElementById('tt-locked-banner').style.display = 'block';
+      document.getElementById('tt-locked-banner').style.display = 'flex';
       document.getElementById('tt-action-btns').style.display = 'none';
+      const canUnlock = currentUser && ['overlordadmin','company_admin','port_engineer','vessel_ops_manager'].includes(currentUser.role);
+      const unlockBtn = document.getElementById('tt-unlock-btn');
+      if (unlockBtn) unlockBtn.style.display = canUnlock ? 'block' : 'none';
       document.querySelectorAll('#screen-trip-ticket input, #screen-trip-ticket select, #screen-trip-ticket textarea')
         .forEach(el => el.setAttribute('disabled', true));
     }
@@ -4328,9 +4442,20 @@ async function runAIOnboard() {
   const text = document.getElementById('ai-onboard-text').value.trim();
   const files = document.getElementById('ai-onboard-files').files;
   const btn = document.getElementById('ai-onboard-btn');
+  const userApiKey = sessionStorage.getItem('vpt_anthropic_key') || '';
 
   if (!text && files.length === 0) {
     alert('Please describe your fleet or upload at least one document.');
+    return;
+  }
+
+  // Check for API key first
+  if (!userApiKey) {
+    const section = document.getElementById('api-key-section');
+    if (section) section.style.display = 'block';
+    const icon = document.getElementById('api-key-toggle-icon');
+    if (icon) icon.textContent = '▲ collapse';
+    alert('Please enter your free Google Gemini API key first (expand the section above). Get one at aistudio.google.com — no credit card needed.');
     return;
   }
 
@@ -4338,58 +4463,83 @@ async function runAIOnboard() {
   btn.innerHTML = '<span class="spinner"></span> Analyzing...';
 
   try {
-    // Build the message content
     const messageContent = [];
     let promptText = 'Extract fleet/vessel information from the following and return ONLY valid JSON (no markdown, no preamble) in this exact format: {"vessels":[{"name":"","type":"","official_number":"","year_built":"","length_ft":"","hull":"","engine_model":"","engine_config":"","coi_expiry":"","home_port":""}]}. Use empty strings for unknown fields.\n\n';
     if (text) promptText += 'Fleet description: ' + text + '\n\n';
 
-    // Convert files to base64
     for (const file of files) {
-      const b64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      if (file.type === 'application/pdf') {
+      const ext = file.name.split('.').pop().toLowerCase();
+
+      if (ext === 'xlsx' || ext === 'xls') {
+        // Parse Excel client-side with SheetJS
+        btn.innerHTML = '<span class="spinner"></span> Reading Excel...';
+        const ab = await file.arrayBuffer();
+        const wb = XLSX.read(ab, { type: 'array' });
+        let excelText = 'Excel file: ' + file.name + '\n\n';
+        wb.SheetNames.forEach(sheetName => {
+          const ws = wb.Sheets[sheetName];
+          const csv = XLSX.utils.sheet_to_csv(ws);
+          if (csv.trim()) excelText += 'Sheet: ' + sheetName + '\n' + csv + '\n\n';
+        });
+        promptText += excelText;
+        btn.innerHTML = '<span class="spinner"></span> Analyzing...';
+      } else if (ext === 'csv') {
+        const csvText = await file.text();
+        promptText += 'CSV file: ' + file.name + '\n' + csvText + '\n\n';
+      } else if (ext === 'pdf') {
+        const b64 = await fileToBase64(file);
         messageContent.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } });
       } else if (file.type.startsWith('image/')) {
+        const b64 = await fileToBase64(file);
         messageContent.push({ type: 'image', source: { type: 'base64', media_type: file.type, data: b64 } });
       }
     }
     messageContent.push({ type: 'text', text: promptText });
 
-    const userApiKey = sessionStorage.getItem('vpt_anthropic_key') || '';
-
     const response = await fetch(API + '/api/ai/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
       body: JSON.stringify({
-        userApiKey: userApiKey || undefined,
-        model: 'claude-sonnet-4-6',
+        userApiKey,
+        model: 'gemini-1.5-flash',
         max_tokens: 1500,
         messages: [{ role: 'user', content: messageContent }]
       })
     });
 
     const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'API request failed. Check your API key and try again.');
+    }
+
     let responseText = '';
     if (data.content && Array.isArray(data.content)) {
       responseText = data.content.filter(c => c.type === 'text').map(c => c.text).join('');
     }
-    // Parse JSON from response
     const clean = responseText.replace(/```json|```/g, '').trim();
     aiExtractedData = JSON.parse(clean);
 
     renderAIExtracted(aiExtractedData);
     document.getElementById('ai-onboard-result').style.display = 'block';
   } catch(e) {
-    alert('Could not analyze the fleet info. Error: ' + e.message + '. You can still add vessels manually.');
+    const errMsg = e.message.includes('API') ? e.message : 'Could not analyze: ' + e.message + '. Make sure your Gemini key is entered above.';
+    alert(errMsg);
   } finally {
     btn.disabled = false;
     btn.innerHTML = '<i class="ti ti-sparkles"></i> Analyze & Pre-fill';
   }
 }
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 
 function renderAIExtracted(data) {
   const el = document.getElementById('ai-onboard-extracted');
