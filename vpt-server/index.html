@@ -587,6 +587,8 @@ select option{background:var(--surface2);color:var(--cream)}
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="switchVesselTab('logs',this)">Logs</button>
     <button class="nav-tab" onclick="switchVesselTab('trips',this)">Trip Tickets</button>
+    <button class="nav-tab" onclick="switchVesselTab('voyage',this)">Voyage Log</button>
+    <button class="nav-tab" onclick="switchVesselTab('certs',this)">Certificates</button>
     <button class="nav-tab" onclick="switchVesselTab('maintenance',this)">Maintenance</button>
   </div>
 
@@ -606,6 +608,22 @@ select option{background:var(--surface2);color:var(--cream)}
       <button type="button" onclick="openPurchaseOrder()" class="btn btn-sm" style="flex:1"><i class="ti ti-shopping-cart"></i> New Purchase Order</button>
     </div>
     <div class="card" id="vd-trips-list"><div class="empty-state">Loading trip tickets...</div></div>
+  </div>
+
+  <!-- Voyage Log Tab -->
+  <div id="vd-tab-voyage" style="display:none">
+    <div style="display:flex;gap:8px;margin-bottom:1rem">
+      <button type="button" onclick="openVoyageLogEntry()" class="btn btn-primary btn-sm" style="flex:1"><i class="ti ti-plus"></i> Add Log Entry</button>
+    </div>
+    <div class="card" id="vd-voyage-list"><div class="empty-state">Loading voyage log...</div></div>
+  </div>
+
+  <!-- Certificates Tab -->
+  <div id="vd-tab-certs" style="display:none">
+    <div style="display:flex;gap:8px;margin-bottom:1rem">
+      <button type="button" onclick="openAddCert()" class="btn btn-primary btn-sm" style="flex:1"><i class="ti ti-plus"></i> Add Certificate</button>
+    </div>
+    <div class="card" id="vd-certs-list"><div class="empty-state">Loading certificates...</div></div>
   </div>
 
   <!-- Maintenance Tab -->
@@ -672,6 +690,7 @@ select option{background:var(--surface2);color:var(--cream)}
       <div style="font-size:12px;color:var(--steel)" id="tt-number">Draft</div>
     </div>
     <div id="tt-autosave-indicator" style="font-size:11px;color:var(--steel);margin-left:auto;padding-right:4px"></div>
+    <button type="button" onclick="openLaborLabelSettings()" title="Edit labor type labels" style="background:none;border:none;color:var(--steel);cursor:pointer;font-size:16px;padding:4px"><i class="ti ti-settings"></i></button>
   </div>
   <div style="padding:1rem;max-width:700px;margin:0 auto">
 
@@ -734,9 +753,9 @@ select option{background:var(--surface2);color:var(--cream)}
       <div style="display:grid;grid-template-columns:2fr 1fr 0.7fr 0.7fr 0.7fr auto;gap:4px;margin-bottom:6px">
         <span style="font-size:10px;color:var(--steel);font-weight:600">NAME</span>
         <span style="font-size:10px;color:var(--steel);font-weight:600">POSITION</span>
-        <span style="font-size:10px;color:var(--steel);font-weight:600">ST</span>
-        <span style="font-size:10px;color:var(--steel);font-weight:600">PT</span>
-        <span style="font-size:10px;color:var(--steel);font-weight:600">OT</span>
+        <span id="tt-col-l1" style="font-size:10px;color:var(--steel);font-weight:600">ST</span>
+        <span id="tt-col-l2" style="font-size:10px;color:var(--steel);font-weight:600">PT</span>
+        <span id="tt-col-l3" style="font-size:10px;color:var(--steel);font-weight:600">OT</span>
         <span></span>
       </div>
       <div id="tt-crew-list"></div>
@@ -1208,6 +1227,7 @@ if (role === 'crew' || role === 'boat_crew') {
       const compBtn = document.getElementById('compliance-btn');
       if (compBtn) compBtn.style.display = canManage ? 'inline-flex' : 'none';
       loadDashboard();
+      loadCompanySettings();
       if (canManage) {
         loadNotifications();
         setInterval(() => { if (token) loadNotifications(); }, 60000);
@@ -1594,31 +1614,57 @@ function renderRecent() {
   const el = document.getElementById('dash-recent-list');
   const vesselFilter = document.getElementById('filter-vessel') ? document.getElementById('filter-vessel').value : '';
   const dateFilter = document.getElementById('filter-date') ? document.getElementById('filter-date').value : '';
-  let filtered = [...allLogs].sort((a,b) => new Date(b.submitted_at)-new Date(a.submitted_at));
-  if (vesselFilter) filtered = filtered.filter(l => l.vessel_id === vesselFilter);
-  if (dateFilter) filtered = filtered.filter(l => (l.log_date||'').startsWith(dateFilter));
-  filtered = filtered.slice(0,50);
-  if (!filtered.length) { el.innerHTML = '<div class="empty-state">No logs match the selected filters.</div>'; return; }
-  el.innerHTML = filtered.map(l => {
-    const vessel = allVessels.find(v => v.id === l.vessel_id);
+
+  // Merge engine logs and completed trips into one activity feed
+  let items = [];
+  allLogs.forEach(l => { items.push({ type: 'log', date: new Date(l.submitted_at), data: l }); });
+  (allTrips || []).filter(t => t.status === 'closed').forEach(t => {
+    items.push({ type: 'trip', date: new Date(t.arrival_time || t.created_at), data: t });
+  });
+  items.sort((a,b) => b.date - a.date);
+  if (vesselFilter) items = items.filter(i => i.data.vessel_id === vesselFilter);
+  if (dateFilter) items = items.filter(i => i.date.toISOString().startsWith(dateFilter));
+  items = items.slice(0, 50);
+
+  if (!items.length) { el.innerHTML = '<div class="empty-state">No recent activity matches the selected filters.</div>'; return; }
+
+  el.innerHTML = items.map(item => {
+    const vessel = allVessels.find(v => v.id === item.data.vessel_id);
     const vName = vessel ? vessel.name : 'Unknown vessel';
-    const d = new Date(l.submitted_at);
-    const pct = parseInt(l.completion_pct)||0;
-    const pillClass = pct===100?'pill-ok':pct>=75?'pill-warn':'pill-danger';
-    return '<div class="log-row">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center">' +
-      '<span style="font-size:14px;font-weight:500;color:var(--cream)">' + vName + '</span>' +
-      '<span style="font-size:12px;color:var(--steel)">' + d.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' at ' + d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) + '</span>' +
-      '</div>' +
-      '<div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap">' +
-      '<span style="font-size:12px;color:var(--steel)">' + (l.engineer_name||'Unknown') + '</span>' +
-      '<span class="stat-pill ' + pillClass + '" style="font-size:10px">' + pct + '% complete</span>' +
-      (parseInt(l.flag_count)>0?'<span class="stat-pill pill-warn" style="font-size:10px">'+l.flag_count+' flag'+(l.flag_count>1?'s':'')+'</span>':'') +
-      (l.engine_hours?'<span style="font-size:11px;color:var(--steel)">' + l.engine_hours + ' hrs</span>':'') +
-      '</div></div>';
+    const d = item.date;
+    const dateStr = d.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' at ' + d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+    if (item.type === 'log') {
+      const l = item.data;
+      const pct = parseInt(l.completion_pct)||0;
+      const pillClass = pct===100?'pill-ok':pct>=75?'pill-warn':'pill-danger';
+      return '<div class="log-row">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<div style="display:flex;gap:6px;align-items:center">' +
+        '<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(107,114,128,0.15);color:var(--steel);border:1px solid var(--border)">Engine Log</span>' +
+        '<span style="font-size:14px;font-weight:500;color:var(--cream)">' + vName + '</span></div>' +
+        '<span style="font-size:12px;color:var(--steel)">' + dateStr + '</span></div>' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap">' +
+        '<span style="font-size:12px;color:var(--steel)">' + (l.engineer_name||'Unknown') + '</span>' +
+        '<span class="stat-pill ' + pillClass + '" style="font-size:10px">' + pct + '% complete</span>' +
+        (parseInt(l.flag_count)>0?'<span class="stat-pill pill-warn" style="font-size:10px">'+l.flag_count+' flag'+(l.flag_count>1?'s':'')+'</span>':'') +
+        (l.engine_hours?'<span style="font-size:11px;color:var(--steel)">'+l.engine_hours+' hrs</span>':'') +
+        '</div></div>';
+    } else {
+      const t = item.data;
+      const depTime = t.departure_time ? new Date(t.departure_time).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : '—';
+      const arrTime = t.arrival_time ? new Date(t.arrival_time).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : '—';
+      return '<div class="log-row" style="cursor:pointer" onclick="openTripTicket(\'' + t.id + '\')">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<div style="display:flex;gap:6px;align-items:center">' +
+        '<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(45,212,191,0.1);color:var(--green);border:1px solid rgba(45,212,191,0.3)">Trip</span>' +
+        '<span style="font-size:14px;font-weight:500;color:var(--cream)">' + vName + (t.trip_number ? ' — #'+t.trip_number : '') + '</span></div>' +
+        '<span style="font-size:12px;color:var(--steel)">' + dateStr + '</span></div>' +
+        '<div style="font-size:12px;color:var(--steel);margin-top:4px">Depart ' + depTime + ' → Arrive ' + arrTime + (t.total_engine_hours ? ' · '+t.total_engine_hours+' engine hrs' : '') + '</div>' +
+        '<div style="font-size:11px;color:var(--gold);margin-top:2px"><i class="ti ti-file-invoice"></i> Tap to view ticket</div>' +
+        '</div>';
+    }
   }).join('');
 }
-
 function clearFilters() {
   const fv = document.getElementById('filter-vessel');
   const fd = document.getElementById('filter-date');
@@ -3103,13 +3149,14 @@ async function submitReportIssue() {
 function switchVesselTab(tab, el) {
   document.querySelectorAll('#screen-vessel-detail .nav-tab').forEach(t => t.classList.remove('active'));
   if (el) el.classList.add('active');
-  const logsDiv = document.getElementById('vd-tab-logs');
-  const tripsDiv = document.getElementById('vd-tab-trips');
-  const maintDiv = document.getElementById('vd-tab-maintenance');
-  if (logsDiv) logsDiv.style.display = tab === 'logs' ? 'block' : 'none';
-  if (tripsDiv) tripsDiv.style.display = tab === 'trips' ? 'block' : 'none';
-  if (maintDiv) maintDiv.style.display = tab === 'maintenance' ? 'block' : 'none';
+  const tabs = ['logs','trips','voyage','certs','maintenance'];
+  tabs.forEach(t => {
+    const d = document.getElementById('vd-tab-' + t);
+    if (d) d.style.display = t === tab ? 'block' : 'none';
+  });
   if (tab === 'trips') loadVesselTrips();
+  if (tab === 'voyage') loadVoyageLog(currentVesselDetailId);
+  if (tab === 'certs') loadVesselCerts(currentVesselDetailId);
   if (tab === 'maintenance') {
     loadVesselMaintenance();
     loadVesselEngineSchedules(currentVesselDetailId);
@@ -3338,7 +3385,265 @@ async function markOrderComplete(logId) {
 }
 
 
-// ── MARINE DIESEL ENGINE SERVICE SPECS (from OEM manuals) ──
+// ── VOYAGE LOG ────────────────────────────────────────────────
+let companySettings = { labor_label_1: 'ST', labor_label_2: 'PT', labor_label_3: 'OT' };
+
+async function loadCompanySettings() {
+  try {
+    const res = await fetch(API + '/api/admin/company', { headers: {'Authorization':'Bearer '+token} });
+    const data = await res.json();
+    if (data.company) {
+      companySettings.labor_label_1 = data.company.labor_label_1 || 'ST';
+      companySettings.labor_label_2 = data.company.labor_label_2 || 'PT';
+      companySettings.labor_label_3 = data.company.labor_label_3 || 'OT';
+    }
+  } catch(e) { console.warn('Could not load company settings'); }
+}
+
+const ENTRY_TYPES = {
+  position: { label: 'Position Report', color: 'var(--gold)', icon: 'ti-map-pin' },
+  radio: { label: 'Radio Communication', color: 'var(--steel)', icon: 'ti-radio' },
+  weather: { label: 'Weather Update', color: '#60A5FA', icon: 'ti-cloud' },
+  event: { label: 'Notable Event', color: 'var(--amber)', icon: 'ti-alert-circle' },
+  fuel: { label: 'Fuel Report', color: 'var(--green)', icon: 'ti-droplet' },
+  other: { label: 'Other', color: 'var(--steel)', icon: 'ti-notes' }
+};
+
+async function loadVoyageLog(vesselId) {
+  const el = document.getElementById('vd-voyage-list');
+  if (!el || !vesselId) return;
+  el.innerHTML = '<div class="empty-state"><span class="spinner spinner-dark"></span></div>';
+  try {
+    const res = await fetch(API + '/api/voyage-log?vessel_id=' + vesselId, { headers: {'Authorization':'Bearer '+token} });
+    const data = await res.json();
+    const entries = data.entries || [];
+    if (!entries.length) {
+      el.innerHTML = '<div class="empty-state">No voyage log entries yet. Add position reports, radio comms, weather updates, and notable events.</div>';
+      return;
+    }
+    el.innerHTML = entries.map(e => {
+      const et = ENTRY_TYPES[e.entry_type] || ENTRY_TYPES.other;
+      const dt = new Date(e.entry_time);
+      const dateStr = dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ' ' + dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+      return '<div style="padding:12px 0;border-bottom:1px solid var(--border)">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
+        '<div style="display:flex;gap:8px;align-items:center">' +
+        '<span style="font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid ' + et.color + ';color:' + et.color + '">' + et.label + '</span>' +
+        '</div>' +
+        '<div style="font-size:11px;color:var(--steel)">' + dateStr + '</div>' +
+        '</div>' +
+        (e.position_desc ? '<div style="font-size:12px;color:var(--gold);margin-top:4px"><i class="ti ti-map-pin"></i> ' + e.position_desc + (e.course ? ' | COG ' + e.course + '°' : '') + (e.speed ? ' | ' + e.speed + ' kts' : '') + '</div>' : '') +
+        '<div style="font-size:13px;color:var(--cream);margin-top:4px">' + e.notes + '</div>' +
+        '<div style="font-size:11px;color:var(--steel);margin-top:4px">' + (e.submitted_by_name || 'Unknown') + '</div>' +
+        '</div>';
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="empty-state" style="color:var(--red)">Failed to load voyage log.</div>';
+  }
+}
+
+function openVoyageLogEntry() {
+  const typeOpts = Object.entries(ENTRY_TYPES).map(([k,v]) => '<option value="'+k+'">'+v.label+'</option>').join('');
+  const now = new Date().toISOString().slice(0,16);
+  const html = '<div style="padding:1rem;max-width:600px;margin:0 auto">' +
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:1rem">' +
+    '<button onclick="document.getElementById(\'voyage-modal\').remove()" style="background:none;border:none;color:var(--steel);font-size:20px;cursor:pointer">&larr;</button>' +
+    '<div style="font-size:16px;font-weight:600;color:var(--cream)">Add Log Entry</div></div>' +
+    '<div class="form-group"><label>Entry Type</label><select id="vl-type" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px">'+typeOpts+'</select></div>' +
+    '<div class="form-group"><label>Date & Time</label><input type="datetime-local" id="vl-time" value="'+now+'" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px"></div>' +
+    '<div class="form-group"><label>Position / Location <span style="color:var(--steel);font-weight:400">(optional)</span></label><input type="text" id="vl-position" placeholder="e.g. Berth 7, Platform Alpha, 33°42\'N 118°15\'W" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px"></div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
+    '<div class="form-group"><label>Course (°) <span style="color:var(--steel);font-weight:400">(opt)</span></label><input type="text" id="vl-course" placeholder="e.g. 045" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px"></div>' +
+    '<div class="form-group"><label>Speed (kts) <span style="color:var(--steel);font-weight:400">(opt)</span></label><input type="text" id="vl-speed" placeholder="e.g. 12.5" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px"></div>' +
+    '</div>' +
+    '<div class="form-group"><label>Notes / Details <span class="required-star">*</span></label><textarea id="vl-notes" rows="4" placeholder="Describe what happened, communications, observations..." style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-family:inherit;font-size:14px"></textarea></div>' +
+    '<div id="vl-error" style="color:var(--red);font-size:13px;display:none;margin-bottom:10px"></div>' +
+    '<button type="button" onclick="submitVoyageLogEntry()" style="width:100%;padding:14px;background:var(--gold);color:#1a1a1a;font-weight:700;border:none;border-radius:8px;cursor:pointer;font-size:15px">Save Log Entry</button>' +
+    '</div>';
+  const modal = document.createElement('div');
+  modal.id = 'voyage-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:var(--bg);z-index:9999;overflow-y:auto;padding:1rem';
+  modal.innerHTML = html;
+  document.body.appendChild(modal);
+}
+
+async function submitVoyageLogEntry() {
+  const notes = (document.getElementById('vl-notes')||{}).value?.trim();
+  const errEl = document.getElementById('vl-error');
+  if (!notes) { errEl.textContent = 'Notes are required.'; errEl.style.display = 'block'; return; }
+  const payload = {
+    vessel_id: currentVesselDetailId,
+    entry_type: document.getElementById('vl-type').value,
+    entry_time: document.getElementById('vl-time').value ? new Date(document.getElementById('vl-time').value).toISOString() : new Date().toISOString(),
+    position_desc: document.getElementById('vl-position').value || null,
+    course: document.getElementById('vl-course').value || null,
+    speed: document.getElementById('vl-speed').value || null,
+    notes
+  };
+  try {
+    const res = await fetch(API + '/api/voyage-log', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) { const d = await res.json(); throw new Error(d.error||'Failed'); }
+    document.getElementById('voyage-modal')?.remove();
+    loadVoyageLog(currentVesselDetailId);
+  } catch(e) { if(errEl){ errEl.textContent = e.message; errEl.style.display = 'block'; } }
+}
+
+// ── CERTIFICATES ──────────────────────────────────────────────
+const CERT_TYPES = [
+  'Certificate of Inspection (COI)','Load Line Certificate','Radio Station License',
+  'Safety Management Certificate','Document of Compliance','USCG Documentation',
+  'State Registration','Insurance Certificate','Stability Letter',
+  'Oil Pollution Prevention Certificate','Fire Safety Certificate','Life Saving Appliances',
+  'International Ship Security Certificate','Other'
+];
+
+async function loadVesselCerts(vesselId) {
+  const el = document.getElementById('vd-certs-list');
+  if (!el || !vesselId) return;
+  el.innerHTML = '<div class="empty-state"><span class="spinner spinner-dark"></span></div>';
+  try {
+    const res = await fetch(API + '/api/fleet/certificates?vessel_id=' + vesselId, { headers: {'Authorization':'Bearer '+token} });
+    const data = await res.json();
+    const certs = data.certificates || [];
+    if (!certs.length) {
+      el.innerHTML = '<div class="empty-state">No certificates on file. Add the vessel\'s COI, radio license, and other required documents.</div>';
+      return;
+    }
+    const today = new Date();
+    el.innerHTML = certs.map(c => {
+      const expiry = c.expiry_date ? new Date(c.expiry_date) : null;
+      const daysLeft = expiry ? Math.floor((expiry - today) / 86400000) : null;
+      const isExpired = daysLeft !== null && daysLeft < 0;
+      const isDue = daysLeft !== null && daysLeft <= (c.alert_threshold_days || 30) && !isExpired;
+      const statusColor = isExpired ? 'var(--red)' : isDue ? 'var(--amber)' : 'var(--green)';
+      const statusLabel = isExpired ? 'EXPIRED' : isDue ? daysLeft + ' days' : expiry ? daysLeft + ' days' : 'No expiry';
+      return '<div style="padding:12px 0;border-bottom:1px solid var(--border)">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
+        '<div style="font-size:14px;font-weight:600;color:var(--cream)">' + c.document_type + '</div>' +
+        '<span style="font-size:11px;padding:2px 8px;border-radius:10px;border:1px solid ' + statusColor + ';color:' + statusColor + '">' + statusLabel + '</span>' +
+        '</div>' +
+        (c.issue_date ? '<div style="font-size:12px;color:var(--steel);margin-top:3px">Issued: ' + new Date(c.issue_date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + '</div>' : '') +
+        (c.expiry_date ? '<div style="font-size:12px;color:var(--steel)">Expires: ' + new Date(c.expiry_date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + '</div>' : '') +
+        (c.last_annual ? '<div style="font-size:12px;color:var(--steel)">Last annual: ' + new Date(c.last_annual).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + '</div>' : '') +
+        (c.notes ? '<div style="font-size:12px;color:var(--steel);margin-top:3px">' + c.notes + '</div>' : '') +
+        '<div style="display:flex;gap:8px;margin-top:6px">' +
+        '<button type="button" onclick="openEditCert(\'' + c.id + '\')" style="font-size:11px;padding:3px 10px;border-radius:5px;border:1px solid var(--border);background:var(--surface2);color:var(--cream);cursor:pointer">Edit</button>' +
+        '<button type="button" onclick="deleteCert(\'' + c.id + '\')" style="font-size:11px;padding:3px 10px;border-radius:5px;border:1px solid var(--red);background:transparent;color:var(--red);cursor:pointer">Delete</button>' +
+        '</div></div>';
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="empty-state" style="color:var(--red)">Failed to load certificates.</div>';
+  }
+}
+
+function openAddCert() { openCertForm(null); }
+function openEditCert(certId) {
+  fetch(API + '/api/fleet/certificates?vessel_id=' + currentVesselDetailId, {headers:{'Authorization':'Bearer '+token}})
+    .then(r=>r.json()).then(data => {
+      const cert = (data.certificates||[]).find(c => c.id === certId);
+      if (cert) openCertForm(cert);
+    });
+}
+
+function openCertForm(cert) {
+  const typeOpts = CERT_TYPES.map(t => '<option value="'+t+'" '+(cert&&cert.document_type===t?'selected':'')+'>'+t+'</option>').join('');
+  const isEdit = !!cert;
+  const html = '<div style="padding:1rem;max-width:600px;margin:0 auto">' +
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:1rem">' +
+    '<button onclick="document.getElementById(\'cert-modal\').remove()" style="background:none;border:none;color:var(--steel);font-size:20px;cursor:pointer">&larr;</button>' +
+    '<div style="font-size:16px;font-weight:600;color:var(--cream)">' + (isEdit?'Edit':'Add') + ' Certificate</div></div>' +
+    '<div class="form-group"><label>Document Type</label><select id="cf-type" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px">'+typeOpts+'</select></div>' +
+    '<div class="form-group"><label>Issue Date</label><input type="date" id="cf-issue" value="'+(cert&&cert.issue_date||'')+'" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px"></div>' +
+    '<div class="form-group"><label>Expiry Date</label><input type="date" id="cf-expiry" value="'+(cert&&cert.expiry_date||'')+'" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px"></div>' +
+    '<div class="form-group"><label>Last Annual Inspection</label><input type="date" id="cf-annual" value="'+(cert&&cert.last_annual||'')+'" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px"></div>' +
+    '<div class="form-group"><label>Alert Threshold (days before expiry)</label><input type="number" id="cf-threshold" value="'+(cert&&cert.alert_threshold_days||30)+'" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px"></div>' +
+    '<div class="form-group"><label>Notes</label><textarea id="cf-notes" rows="2" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-family:inherit;font-size:14px">'+(cert&&cert.notes||'')+'</textarea></div>' +
+    '<div id="cf-error" style="color:var(--red);font-size:13px;display:none;margin-bottom:10px"></div>' +
+    '<button type="button" onclick="saveCert('+(isEdit?'\''+cert.id+'\'':"null")+')" style="width:100%;padding:14px;background:var(--gold);color:#1a1a1a;font-weight:700;border:none;border-radius:8px;cursor:pointer;font-size:15px">' + (isEdit?'Save Changes':'Add Certificate') + '</button>' +
+    '</div>';
+  let modal = document.getElementById('cert-modal');
+  if (!modal) { modal = document.createElement('div'); modal.id = 'cert-modal'; document.body.appendChild(modal); }
+  modal.style.cssText = 'position:fixed;inset:0;background:var(--bg);z-index:9999;overflow-y:auto;padding:1rem';
+  modal.innerHTML = html;
+}
+
+async function saveCert(certId) {
+  const payload = {
+    vessel_id: currentVesselDetailId,
+    document_type: document.getElementById('cf-type').value,
+    issue_date: document.getElementById('cf-issue').value || null,
+    expiry_date: document.getElementById('cf-expiry').value || null,
+    last_annual: document.getElementById('cf-annual').value || null,
+    alert_threshold_days: parseInt(document.getElementById('cf-threshold').value) || 30,
+    notes: document.getElementById('cf-notes').value || null
+  };
+  const errEl = document.getElementById('cf-error');
+  try {
+    const url = certId ? API + '/api/fleet/certificates/' + certId : API + '/api/fleet/certificates';
+    const method = certId ? 'PUT' : 'POST';
+    const res = await fetch(url, { method, headers:{'Content-Type':'application/json','Authorization':'Bearer '+token}, body: JSON.stringify(payload) });
+    if (!res.ok) { const d = await res.json(); throw new Error(d.error||'Failed'); }
+    document.getElementById('cert-modal')?.remove();
+    loadVesselCerts(currentVesselDetailId);
+  } catch(e) { if(errEl){errEl.textContent=e.message;errEl.style.display='block';} }
+}
+
+async function deleteCert(certId) {
+  if (!confirm('Delete this certificate? This cannot be undone.')) return;
+  try {
+    await fetch(API + '/api/fleet/certificates/' + certId, { method:'DELETE', headers:{'Authorization':'Bearer '+token} });
+    loadVesselCerts(currentVesselDetailId);
+  } catch(e) { alert('Failed to delete certificate'); }
+}
+
+// ── LABOR LABELS SETTINGS ─────────────────────────────────────
+async function openLaborLabelSettings() {
+  await loadCompanySettings();
+  const html = '<div style="padding:1rem;max-width:500px;margin:0 auto">' +
+    '<div style="font-size:16px;font-weight:600;color:var(--cream);margin-bottom:6px">Labor Type Labels</div>' +
+    '<div style="font-size:13px;color:var(--steel);margin-bottom:1.5rem">Customize the labor column headers on trip ticket crew manifests for your company\'s billing system.</div>' +
+    '<div class="form-group"><label>Label 1 (default: ST — Straight Time)</label><input type="text" id="ll-1" value="'+companySettings.labor_label_1+'" maxlength="10" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px"></div>' +
+    '<div class="form-group"><label>Label 2 (default: PT — Premium Time)</label><input type="text" id="ll-2" value="'+companySettings.labor_label_2+'" maxlength="10" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px"></div>' +
+    '<div class="form-group"><label>Label 3 (default: OT — Overtime)</label><input type="text" id="ll-3" value="'+companySettings.labor_label_3+'" maxlength="10" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px"></div>' +
+    '<div id="ll-error" style="color:var(--red);font-size:13px;display:none;margin-bottom:10px"></div>' +
+    '<div style="display:flex;gap:10px">' +
+    '<button type="button" onclick="document.getElementById(\'ll-modal\').remove()" style="flex:1;padding:12px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;cursor:pointer">Cancel</button>' +
+    '<button type="button" onclick="saveLaborLabels()" style="flex:1;padding:12px;background:var(--gold);color:#1a1a1a;font-weight:700;border:none;border-radius:8px;cursor:pointer">Save</button>' +
+    '</div></div>';
+  let modal = document.getElementById('ll-modal');
+  if (!modal) { modal = document.createElement('div'); modal.id = 'll-modal'; document.body.appendChild(modal); }
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
+  const inner = document.createElement('div');
+  inner.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:12px;width:100%;max-width:500px;max-height:90vh;overflow-y:auto';
+  inner.innerHTML = html;
+  modal.innerHTML = '';
+  modal.appendChild(inner);
+}
+
+async function saveLaborLabels() {
+  const payload = {
+    labor_label_1: document.getElementById('ll-1').value.trim() || 'ST',
+    labor_label_2: document.getElementById('ll-2').value.trim() || 'PT',
+    labor_label_3: document.getElementById('ll-3').value.trim() || 'OT'
+  };
+  try {
+    const res = await fetch(API + '/api/admin/company/settings', {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('Failed to save');
+    Object.assign(companySettings, payload);
+    document.getElementById('ll-modal')?.remove();
+  } catch(e) {
+    const errEl = document.getElementById('ll-error');
+    if (errEl) { errEl.textContent = e.message; errEl.style.display = 'block'; }
+  }
+}
 const ENGINE_SERVICE_SPECS = {"Caterpillar C18":[{"task":"Engine Oil & Filter Change","hours":250,"months":12,"category":"Routine"},{"task":"Engine Oil Sample","hours":250,"months":12,"category":"Routine"},{"task":"Racor (Primary) Fuel Filter","hours":250,"months":12,"category":"Routine"},{"task":"Secondary Fuel Filter","hours":250,"months":12,"category":"Routine"},{"task":"Engine Air Filter (Clean/Replace)","hours":250,"months":12,"category":"Routine"},{"task":"Crankcase Breather Clean","hours":250,"months":12,"category":"Routine"},{"task":"Coolant Level & Additive Check","hours":250,"months":12,"category":"Routine"},{"task":"Coolant Sample","hours":250,"months":12,"category":"Routine"},{"task":"Auxiliary Water Pump Impeller","hours":250,"months":12,"category":"Routine"},{"task":"Engine Belts (Inspect/Adjust)","hours":250,"months":12,"category":"Routine"},{"task":"Battery Electrolyte & Voltage","hours":250,"months":12,"category":"Routine"},{"task":"Hoses & Clamps Inspection","hours":250,"months":12,"category":"Routine"},{"task":"Aftercooler Core Clean/Bench Test","hours":1000,"months":48,"category":"Major"},{"task":"Heat Exchanger Inspect/Clean","hours":1000,"months":48,"category":"Major"},{"task":"Turbocharger Inspection","hours":1000,"months":48,"category":"Major"},{"task":"CCV Fumes Disposal Filter Replace","hours":1000,"months":48,"category":"Major"},{"task":"Coolant System Flush & Replace","hours":3000,"months":72,"category":"Overhaul"},{"task":"Water Temp Regulator (Thermostat)","hours":3000,"months":72,"category":"Overhaul"},{"task":"Engine Valve Lash Adjustment","hours":3000,"months":72,"category":"Overhaul"},{"task":"Fuel Injectors Inspect/Adjust","hours":3000,"months":72,"category":"Overhaul"},{"task":"Crankshaft Vibration Damper Inspect","hours":3000,"months":72,"category":"Overhaul"},{"task":"Engine Mounts Inspection","hours":3000,"months":72,"category":"Overhaul"},{"task":"Starter Motor Inspect/Replace","hours":3000,"months":72,"category":"Overhaul"},{"task":"Alternator Inspect/Replace","hours":3000,"months":72,"category":"Overhaul"},{"task":"Oil Cooler Core Inspect","hours":3000,"months":72,"category":"Overhaul"},{"task":"Zinc Anode Replace","hours":250,"months":6,"category":"Routine"}],"Cummins QSL9":[{"task":"Zinc Anode Replace","hours":250,"months":6,"category":"Routine"},{"task":"Engine Oil & Filter (ULSD)","hours":500,"months":12,"category":"Routine"},{"task":"Engine Air Cleaner Clean","hours":500,"months":12,"category":"Routine"},{"task":"Spin-On Fuel Filter Replace","hours":500,"months":12,"category":"Routine"},{"task":"Fuel-Water Separator (Racor)","hours":500,"months":12,"category":"Routine"},{"task":"Seawater Pump Impeller Replace","hours":500,"months":12,"category":"Routine"},{"task":"Seawater Hoses Check","hours":500,"months":12,"category":"Routine"},{"task":"Coolant Filter Change","hours":500,"months":12,"category":"Routine"},{"task":"SCA & Antifreeze Concentration","hours":500,"months":12,"category":"Routine"},{"task":"Radiator/HX Pressure Cap Inspect","hours":500,"months":12,"category":"Routine"},{"task":"Battery Cables & Connections","hours":500,"months":12,"category":"Routine"},{"task":"Engine Wiring Harness Check","hours":500,"months":12,"category":"Routine"},{"task":"Turbocharger Check","hours":1500,"months":12,"category":"Major"},{"task":"Aftercooler Assembly (Seawater)","hours":"","months":36,"category":"Major"},{"task":"Cooling System Flush","hours":2000,"months":48,"category":"Overhaul"},{"task":"Vibration Damper Check","hours":2000,"months":48,"category":"Overhaul"},{"task":"Overhead Set (Valve Lash) Adjust","hours":5000,"months":"","category":"Overhaul"}],"Cummins X15":[{"task":"Zinc Anode Replace","hours":250,"months":6,"category":"Routine"},{"task":"Engine Oil & Filter","hours":500,"months":12,"category":"Routine"},{"task":"Engine Air Cleaner Clean","hours":1500,"months":12,"category":"Routine"},{"task":"Spin-On Fuel Filter Replace","hours":500,"months":12,"category":"Routine"},{"task":"Fuel-Water Separator (Racor)","hours":500,"months":12,"category":"Routine"},{"task":"Seawater Pump Impeller Replace","hours":1500,"months":12,"category":"Routine"},{"task":"Seawater Hoses Check","hours":1500,"months":12,"category":"Routine"},{"task":"Coolant Filter Change","hours":1500,"months":12,"category":"Routine"},{"task":"SCA & Antifreeze Concentration","hours":1500,"months":12,"category":"Routine"},{"task":"HX Pressure Cap Inspect","hours":1500,"months":12,"category":"Routine"},{"task":"Battery Cables & Connections","hours":1500,"months":12,"category":"Routine"},{"task":"Engine Wiring Harness Check","hours":1500,"months":12,"category":"Routine"},{"task":"Turbocharger Check","hours":1500,"months":12,"category":"Major"},{"task":"Crankcase Breather Element","hours":1500,"months":12,"category":"Routine"},{"task":"Aftercooler Assembly (Seawater)","hours":1500,"months":36,"category":"Major"},{"task":"Cooling System Flush","hours":2000,"months":48,"category":"Overhaul"},{"task":"Vibration Damper Check","hours":2000,"months":48,"category":"Overhaul"},{"task":"Overhead Set (Valve Lash) Adjust","hours":5000,"months":"","category":"Overhaul"}],"Marine Generator":[{"task":"Engine Oil & Filter","hours":250,"months":12,"category":"Routine"},{"task":"Fuel Filter Replace","hours":250,"months":12,"category":"Routine"},{"task":"Air Filter Inspect/Replace","hours":500,"months":12,"category":"Routine"},{"task":"Coolant Sample & Top-Up","hours":500,"months":12,"category":"Routine"},{"task":"Impeller Inspect/Replace","hours":1000,"months":24,"category":"Routine"},{"task":"Coolant Flush","hours":2000,"months":48,"category":"Overhaul"},{"task":"Zinc Anode Replace","hours":"","months":6,"category":"Routine"},{"task":"Belt Inspect/Adjust","hours":500,"months":12,"category":"Routine"}],"Northern Lights Generator":[{"task":"Zinc Anode Replace","hours":"","months":6,"category":"Routine"},{"task":"Engine Oil & Filter Change","hours":150,"months":12,"category":"Routine"},{"task":"Oil Sample","hours":150,"months":12,"category":"Routine"},{"task":"Fuel Filter (Primary/Racor)","hours":250,"months":12,"category":"Routine"},{"task":"Fuel Filter (Secondary)","hours":250,"months":12,"category":"Routine"},{"task":"Seawater Pump Impeller","hours":250,"months":12,"category":"Routine"},{"task":"Raw Water Strainer Clean","hours":250,"months":12,"category":"Routine"},{"task":"Drive Belt Inspect/Adjust","hours":250,"months":12,"category":"Routine"},{"task":"Battery & Charging System Check","hours":250,"months":12,"category":"Routine"},{"task":"Air Filter Inspect/Clean","hours":500,"months":12,"category":"Routine"},{"task":"Coolant Level & Concentration","hours":500,"months":12,"category":"Routine"},{"task":"Hose & Clamp Inspection","hours":500,"months":12,"category":"Routine"},{"task":"Exhaust System Inspect","hours":500,"months":12,"category":"Routine"},{"task":"Heat Exchanger Inspect/Clean","hours":1000,"months":24,"category":"Major"},{"task":"Injectors Inspect/Test","hours":1000,"months":24,"category":"Major"},{"task":"Thermostat Replace","hours":1000,"months":24,"category":"Major"},{"task":"Coolant System Flush & Refill","hours":2000,"months":48,"category":"Overhaul"},{"task":"Valve Clearance Adjust","hours":2000,"months":48,"category":"Overhaul"},{"task":"Starter Motor Inspect","hours":2000,"months":48,"category":"Overhaul"},{"task":"Alternator Output Test","hours":2000,"months":48,"category":"Overhaul"}]};
 
 function getEngineSchedule(model) {
@@ -3467,6 +3772,14 @@ async function openTripTicket(tripId) {
     const trip = data.trip;
     currentTripTicketId = t.id;
     ttIsLocked = t.status === 'locked';
+
+    // Apply company labor labels to crew manifest headers
+    const l1 = document.getElementById('tt-col-l1');
+    const l2 = document.getElementById('tt-col-l2');
+    const l3 = document.getElementById('tt-col-l3');
+    if (l1) l1.textContent = companySettings.labor_label_1 || 'ST';
+    if (l2) l2.textContent = companySettings.labor_label_2 || 'PT';
+    if (l3) l3.textContent = companySettings.labor_label_3 || 'OT';
 
     document.getElementById('tt-number').textContent =
       t.ticket_number ? 'Ticket #' + t.ticket_number : (ttIsLocked ? 'Locked — Trip Closed' : 'Live Draft');
@@ -3638,9 +3951,9 @@ function addCrewRow(data) {
   div.innerHTML =
     '<input type="text" placeholder="Employee name" id="tt-crew-name-'+id+'" value="'+(data&&data.name||'')+'" oninput="debouncedAutosave()" style="font-size:13px;padding:7px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:6px">' +
     '<input type="text" placeholder="Position" id="tt-crew-pos-'+id+'" value="'+(data&&data.position||'')+'" oninput="debouncedAutosave()" style="font-size:13px;padding:7px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:6px">' +
-    '<input type="number" step="0.5" placeholder="ST" id="tt-crew-st-'+id+'" title="Straight time" value="'+(data&&data.st_hours||'')+'" oninput="debouncedAutosave()" style="font-size:13px;padding:7px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:6px">' +
-    '<input type="number" step="0.5" placeholder="PT" id="tt-crew-pt-'+id+'" title="Premium time" value="'+(data&&data.pt_hours||'')+'" oninput="debouncedAutosave()" style="font-size:13px;padding:7px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:6px">' +
-    '<input type="number" step="0.5" placeholder="OT" id="tt-crew-ot-'+id+'" title="Overtime" value="'+(data&&data.ot_hours||'')+'" oninput="debouncedAutosave()" style="font-size:13px;padding:7px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:6px">' +
+    '<input type="number" step="0.5" placeholder="' + (companySettings.labor_label_1||'ST') + '" id="tt-crew-st-'+id+'" title="' + (companySettings.labor_label_1||'Straight time') + '" value="'+(data&&data.st_hours||'')+'" oninput="debouncedAutosave()" style="font-size:13px;padding:7px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:6px">' +
+    '<input type="number" step="0.5" placeholder="' + (companySettings.labor_label_2||'PT') + '" id="tt-crew-pt-'+id+'" title="' + (companySettings.labor_label_2||'Premium time') + '" value="'+(data&&data.pt_hours||'')+'" oninput="debouncedAutosave()" style="font-size:13px;padding:7px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:6px">' +
+    '<input type="number" step="0.5" placeholder="' + (companySettings.labor_label_3||'OT') + '" id="tt-crew-ot-'+id+'" title="' + (companySettings.labor_label_3||'Overtime') + '" value="'+(data&&data.ot_hours||'')+'" oninput="debouncedAutosave()" style="font-size:13px;padding:7px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:6px">' +
     '<button type="button" onclick="document.getElementById(\'tt-crew-'+id+'\').remove();debouncedAutosave()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:18px;padding:4px">&times;</button>';
   document.getElementById('tt-crew-list').appendChild(div);
 }

@@ -88,6 +88,43 @@ router.get('/status', async (req, res) => {
   }
 });
  
+// ── POST /api/fleet/certificates ─────────────────────────────
+router.post('/certificates', requireRole(MANAGE_ROLES), async (req, res) => {
+  const { vessel_id, document_type, issue_date, expiry_date, last_annual, alert_threshold_days, notes } = req.body;
+  if (!vessel_id || !document_type) {
+    return res.status(400).json({ error: 'vessel_id and document_type are required' });
+  }
+  try {
+    const { data, error } = await supabase.from('certificates').insert({
+      company_id: req.user.company_id,
+      vessel_id, document_type,
+      issue_date: issue_date || null,
+      expiry_date: expiry_date || null,
+      last_annual: last_annual || null,
+      alert_threshold_days: parseInt(alert_threshold_days) || 30,
+      notes: notes || null
+    }).select().single();
+    if (error) throw error;
+    res.status(201).json({ certificate: data });
+  } catch(err) {
+    res.status(500).json({ error: 'Failed to add certificate', detail: err.message });
+  }
+});
+ 
+// ── DELETE /api/fleet/certificates/:id ───────────────────────
+router.delete('/certificates/:id', requireRole(MANAGE_ROLES), async (req, res) => {
+  try {
+    const { error } = await supabase.from('certificates')
+      .delete()
+      .eq('id', req.params.id)
+      .eq('company_id', req.user.company_id);
+    if (error) throw error;
+    res.json({ message: 'Certificate deleted' });
+  } catch(err) {
+    res.status(500).json({ error: 'Failed to delete certificate' });
+  }
+});
+ 
 // ── GET /api/fleet/certificates ───────────────────────────────
 router.get('/certificates', requireRole(MANAGE_ROLES), async (req, res) => {
   try {
