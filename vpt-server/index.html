@@ -1722,8 +1722,8 @@ function openVesselDetail(vesselId, vesselName) {
   const tabs = document.querySelectorAll('#screen-vessel-detail .nav-tab');
   tabs.forEach(t => t.classList.remove('active'));
   if (tabs[0]) tabs[0].classList.add('active');
-  const tabDivs = ['vd-tab-logs','vd-tab-trips','vd-tab-maintenance'];
-  tabDivs.forEach((t,i) => {
+  const allTabDivs = ['vd-tab-logs','vd-tab-trips','vd-tab-voyage','vd-tab-certs','vd-tab-maintenance'];
+  allTabDivs.forEach((t,i) => {
     const el = document.getElementById(t);
     if (el) el.style.display = i===0 ? 'block' : 'none';
   });
@@ -1769,29 +1769,64 @@ function openVesselDetail(vesselId, vesselName) {
     }
   }
 
-  // Log history
+  // Log history — shows trip watch entries AND standalone engine log sheets
   const logsEl = document.getElementById('vd-logs');
   if (logsEl) {
-    if (!vLogs.length) {
-      logsEl.innerHTML = '<div class="empty-state">No logs for this vessel yet.</div>';
-    } else {
-      logsEl.innerHTML = '<div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;margin-bottom:10px;text-transform:uppercase">Log history</div>' +
-        vLogs.map(l => {
-          const d = new Date(l.submitted_at);
-          const pct = parseInt(l.completion_pct)||0;
-          const pillClass = pct===100?'pill-ok':pct>=75?'pill-warn':'pill-danger';
-          return '<div class="log-row">' +
-            '<div style="display:flex;justify-content:space-between;align-items:center">' +
-            '<span style="font-size:14px;color:var(--cream)">' + d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}) + '</span>' +
-            '<span class="stat-pill ' + pillClass + '" style="font-size:10px">' + pct + '%</span>' +
-            '</div>' +
-            '<div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap">' +
-            '<span style="font-size:12px;color:var(--steel)">' + (l.engineer_name||'Unknown') + '</span>' +
-            (l.engine_hours?'<span style="font-size:11px;color:var(--gold)">' + l.engine_hours + ' hrs</span>':'') +
-            (parseInt(l.flag_count)>0?'<span class="stat-pill pill-warn" style="font-size:10px">'+l.flag_count+' flag'+(l.flag_count>1?'s':'')+'</span>':'<span style="font-size:11px;color:var(--steel)">No flags</span>') +
-            '</div></div>';
-        }).join('');
-    }
+    logsEl.innerHTML = '<div class="empty-state"><span class="spinner spinner-dark"></span></div>';
+    fetch(API + '/api/trips?vessel_id=' + vesselId, {headers: {'Authorization':'Bearer '+token}})
+      .then(r => r.json()).then(tripData => {
+        const vesselTrips = (tripData.trips || []).filter(t => t.status === 'closed' || t.status === 'active');
+        return Promise.all(vesselTrips.map(t =>
+          fetch(API + '/api/trips/' + t.id, {headers: {'Authorization':'Bearer '+token}})
+            .then(r => r.json()).then(d => ({ trip: t, watches: d.watchEntries || [] }))
+        ));
+      }).then(tripDetails => {
+        const watchEntries = [];
+        tripDetails.forEach(({ trip, watches }) => watches.forEach(w => watchEntries.push({ ...w, trip })));
+        const combined = [
+          ...vLogs.map(l => ({ _type: 'log', _date: new Date(l.submitted_at), data: l })),
+          ...watchEntries.map(w => ({ _type: 'watch', _date: new Date(w.submitted_at || w.created_at), data: w }))
+        ].sort((a,b) => b._date - a._date);
+        if (!combined.length) {
+          logsEl.innerHTML = '<div class="empty-state">No logs yet. Start a trip and submit watch entries to see them here.</div>';
+          return;
+        }
+        logsEl.innerHTML = '<div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;margin-bottom:10px;text-transform:uppercase">Log history</div>' +
+          combined.map(item => {
+            const d = item._date;
+            const dStr = d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) + ' ' + d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+            if (item._type === 'watch') {
+              const w = item.data;
+              return '<div class="log-row">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center">' +
+                '<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(45,212,191,0.1);color:var(--green);border:1px solid rgba(45,212,191,0.3)">Watch Entry</span>' +
+                '<span style="font-size:12px;color:var(--steel)">' + dStr + '</span>' +
+                '</div>' +
+                '<div style="font-size:12px;color:var(--steel);margin-top:4px">' + (w.engineer_name||'Unknown') +
+                (w.watch_start && w.watch_end ? ' · ' + w.watch_start + '–' + w.watch_end : '') +
+                (w.flag_count > 0 ? ' · <span style="color:var(--amber)">' + w.flag_count + ' flag(s)</span>' : '') +
+                '</div>' +
+                (w.notes ? '<div style="font-size:12px;color:var(--steel);margin-top:2px">' + w.notes + '</div>' : '') +
+                '</div>';
+            } else {
+              const l = item.data;
+              const pct = parseInt(l.completion_pct)||0;
+              const pillClass = pct===100?'pill-ok':pct>=75?'pill-warn':'pill-danger';
+              return '<div class="log-row">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center">' +
+                '<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(107,114,128,0.15);color:var(--steel);border:1px solid var(--border)">Engine Log</span>' +
+                '<span class="stat-pill ' + pillClass + '" style="font-size:10px">' + pct + '%</span>' +
+                '</div>' +
+                '<div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap">' +
+                '<span style="font-size:12px;color:var(--steel)">' + (l.engineer_name||'Unknown') + '</span>' +
+                (l.engine_hours?'<span style="font-size:11px;color:var(--gold)">'+l.engine_hours+' hrs</span>':'') +
+                (parseInt(l.flag_count)>0?'<span class="stat-pill pill-warn" style="font-size:10px">'+l.flag_count+' flag'+(l.flag_count>1?'s':'')+'</span>':'') +
+                '</div></div>';
+            }
+          }).join('');
+      }).catch(() => {
+        logsEl.innerHTML = '<div class="empty-state">No logs yet for this vessel.</div>';
+      });
   }
 
   show('screen-vessel-detail');

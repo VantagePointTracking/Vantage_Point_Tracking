@@ -1,186 +1,238 @@
 const express = require('express');
 const supabase = require('../lib/supabase');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireRole } = require('../middleware/auth');
+const { sendMaintenanceAlert } = require('../lib/email');
 const router = express.Router();
+
 router.use(requireAuth);
 
-// ── GET /api/trips/active/:vessel_id ─────────────────────────
-router.get('/active/:vessel_id', async (req, res) => {
+const MANAGE_ROLES = ['overlordadmin','company_admin','port_engineer','vessel_ops_manager'];
+const ENG_READ_ROLES = [...MANAGE_ROLES, 'engineering_crew'];
+const ENG_WRITE_ROLES = [...MANAGE_ROLES, 'engineering_crew'];
+
+// ── POST /api/maintenance/orders ─────────────────────────────
+router.post('/orders', async (req, res) => {
+  const { vessel_id, system, component, description, error_codes, priority } = req.body;
+  if (!vessel_id || !system || !description) {
+    return res.status(400).json({ error: 'vessel_id, system, and description are required' });
+  }
   try {
-    const { data, error } = await supabase
-      .from('trips')
-      .select('*')
-      .eq('company_id', req.user.company_id)
-      .eq('vessel_id', req.params.vessel_id)
-      .in('status', ['predeparture', 'active'])
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const { data: order, error } = await supabase
+      .from('maintenance_orders')
+      .insert({
+        company_id: req.user.company_id,
+        vessel_id,
+        submitted_by: req.user.id,
+        submitter_name: req.user.full_name,
+        system,
+        component: component || null,
+        description,
+        error_codes: error_codes || null,
+        priority: priority || 'medium',
+        status: 'pending_review'
+      })
+      .select()
+      .single();
+
     if (error) throw error;
-    res.json({ trip: data });
+
+    const { data: vessel } = await supabase.from('vessels').select('name').eq('id', vessel_id).single();
+    const { data: managers } = await supabase.from('users').select('id, full_name, email')
+      .eq('company_id', req.user.company_id)
+      .in('role', ['overlordadmin','port_engineer','vessel_ops_manager','company_admin'])
+      .eq('active', true);
+
+    if (managers && managers.length > 0) {
+      await supabase.from('notifications').insert(
+        managers.map(m => ({
+          company_id: req.user.company_id,
+          user_id: m.id,
+          type: 'maintenance_order',
+          title: 'New maintenance order',
+          message: `${req.user.full_name} flagged an issue on ${vessel ? vessel.name : 'a vessel'}: ${system}${component ? ' - ' + component : ''}`,
+          reference_id: order.id,
+          read: false
+        }))
+      );
+
+      await sendMaintenanceAlert({
+        managers,
+        submitterName: req.user.full_name,
+        vesselName: vessel ? vessel.name : 'Unknown vessel',
+        system, component, description,
+        priority: priority || 'medium',
+        orderId: order.id
+      });
+    }
+
+    res.status(201).json({ message: 'Maintenance order submitted', order });
   } catch (err) {
-    console.error('GET active trip error:', err.message);
-    res.status(500).json({ error: 'Failed to fetch active trip' });
+    console.error('POST orders error:', err.message);
+    res.status(500).json({ error: 'Failed to submit maintenance order', detail: err.message });
   }
 });
 
-// ── GET /api/trips ────────────────────────────────────────────
-router.get('/', async (req, res) => {
+// ── GET /api/maintenance/orders ──────────────────────────────
+router.get('/orders', async (req, res) => {
   try {
-    const { vessel_id, status } = req.query;
-    let query = supabase
-      .from('trips')
+    const { status } = req.query;
+    let query = supabase.from('maintenance_orders')
       .select('*, vessel:vessels(id,name)')
       .eq('company_id', req.user.company_id)
-      .order('created_at', { ascending: false })
-      .limit(50);
+      .order('created_at', { ascending: false });
+    if (status) query = query.eq('status', status);
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json({ orders: data });
+  } catch (err) {
+    console.error('GET orders error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch orders' });
+  }
+});
+
+// ── PUT /api/maintenance/orders/:id/dismiss ──────────────────
+router.put('/orders/:id/dismiss', requireRole(MANAGE_ROLES), async (req, res) => {
+  const { note } = req.body;
+  try {
+    const { error } = await supabase.from('maintenance_orders')
+      .update({ status: 'dismissed', review_note: note || null, reviewed_by: req.user.id })
+      .eq('id', req.params.id).eq('company_id', req.user.company_id);
+    if (error) throw error;
+    await supabase.from('notifications').update({ read: true })
+      .eq('reference_id', req.params.id).eq('company_id', req.user.company_id);
+    res.json({ message: 'Order dismissed' });
+  } catch (err) {
+    console.error('PUT dismiss error:', err.message);
+    res.status(500).json({ error: 'Failed to dismiss order' });
+  }
+});
+
+// ── PUT /api/maintenance/orders/:id/approve ──────────────────
+router.put('/orders/:id/approve', requireRole(MANAGE_ROLES), async (req, res) => {
+  const { priority, assigned_to, parts_needed, notes } = req.body;
+  try {
+    const { data: order, error: fetchErr } = await supabase.from('maintenance_orders')
+      .select('*, vessel:vessels(id,name)')
+      .eq('id', req.params.id).eq('company_id', req.user.company_id).single();
+    if (fetchErr || !order) return res.status(404).json({ error: 'Order not found' });
+
+    const { data: logEntry, error: logErr } = await supabase.from('maintenance_log')
+      .insert({
+        company_id: req.user.company_id,
+        vessel_id: order.vessel_id,
+        system: order.system,
+        component: order.component,
+        description: order.description,
+        error_codes: order.error_codes,
+        priority: priority || order.priority,
+        status: 'open',
+        reported_by: order.submitter_name,
+        assigned_to: assigned_to || null,
+        parts_needed: parts_needed || null,
+        notes: notes || null,
+        source_order_id: order.id
+      })
+      .select().single();
+    if (logErr) throw logErr;
+
+    await supabase.from('work_order_history').insert({
+      company_id: req.user.company_id,
+      maintenance_log_id: logEntry.id,
+      changed_by_name: req.user.full_name,
+      old_status: null, new_status: 'open',
+      note: 'Work order created'
+    });
+
+    await supabase.from('maintenance_orders')
+      .update({ status: 'approved', reviewed_by: req.user.id, maintenance_log_id: logEntry.id })
+      .eq('id', req.params.id);
+    await supabase.from('notifications').update({ read: true })
+      .eq('reference_id', req.params.id).eq('company_id', req.user.company_id);
+
+    res.json({ message: 'Approved and added to maintenance log', log_entry: logEntry });
+  } catch (err) {
+    console.error('PUT approve error:', err.message);
+    res.status(500).json({ error: 'Failed to approve order', detail: err.message });
+  }
+});
+
+// ── GET /api/maintenance/log ─────────────────────────────────
+router.get('/log', requireRole(ENG_READ_ROLES), async (req, res) => {
+  try {
+    const { vessel_id, status } = req.query;
+    let query = supabase.from('maintenance_log')
+      .select('*, vessel:vessels(id,name)')
+      .eq('company_id', req.user.company_id)
+      .order('created_at', { ascending: false });
     if (vessel_id) query = query.eq('vessel_id', vessel_id);
     if (status) query = query.eq('status', status);
     const { data, error } = await query;
     if (error) throw error;
-    res.json({ trips: data });
+    res.json({ entries: data });
   } catch (err) {
-    console.error('GET trips error:', err.message);
-    res.status(500).json({ error: 'Failed to fetch trips' });
+    console.error('GET log error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch maintenance log' });
   }
 });
 
-// ── POST /api/trips ───────────────────────────────────────────
-router.post('/', async (req, res) => {
-  const { vessel_id, trip_number, fuel_start } = req.body;
-  if (!vessel_id) return res.status(400).json({ error: 'vessel_id required' });
-  try {
-    const { data: existing } = await supabase
-      .from('trips')
-      .select('id')
-      .eq('company_id', req.user.company_id)
-      .eq('vessel_id', vessel_id)
-      .in('status', ['predeparture', 'active'])
-      .maybeSingle();
-    if (existing) return res.status(400).json({ error: 'Vessel already has an active trip' });
-
-    const { data: trip, error } = await supabase
-      .from('trips')
-      .insert({
-        company_id: req.user.company_id,
-        vessel_id,
-        trip_number: trip_number || null,
-        status: 'predeparture',
-        started_by: req.user.id,
-        started_by_name: req.user.full_name,
-        fuel_start: fuel_start || null
-      })
-      .select()
-      .single();
-    if (error) throw error;
-    res.status(201).json({ trip });
-  } catch (err) {
-    console.error('POST trip error:', err.message);
-    res.status(500).json({ error: 'Failed to start trip', detail: err.message });
+// ── PUT /api/maintenance/log/:id ─────────────────────────────
+router.put('/log/:id', requireRole(ENG_WRITE_ROLES), async (req, res) => {
+  const { status, assigned_to, parts_needed, notes, work_performed,
+    root_cause, failure_type, parts_replaced, labor_hours, resolution_notes } = req.body;
+  const allowed = ['open','in_progress','awaiting_parts','complete'];
+  if (status && !allowed.includes(status)) {
+    return res.status(400).json({ error: 'Invalid status' });
   }
-});
-
-// ── PUT /api/trips/:id ────────────────────────────────────────
-router.put('/:id', async (req, res) => {
-  const { trip_number, fuel_start } = req.body;
   try {
+    const { data: existing } = await supabase.from('maintenance_log')
+      .select('status, vessel_id, system, component').eq('id', req.params.id).single();
+
     const updates = {};
-    if (trip_number !== undefined) updates.trip_number = trip_number;
-    if (fuel_start !== undefined) updates.fuel_start = fuel_start;
-    const { data, error } = await supabase
-      .from('trips')
-      .update(updates)
-      .eq('id', req.params.id)
-      .eq('company_id', req.user.company_id)
-      .select()
-      .single();
+    if (status) updates.status = status;
+    if (assigned_to !== undefined) updates.assigned_to = assigned_to;
+    if (parts_needed !== undefined) updates.parts_needed = parts_needed;
+    if (notes !== undefined) updates.notes = notes;
+    if (work_performed !== undefined) updates.work_performed = work_performed;
+    if (root_cause !== undefined) updates.root_cause = root_cause;
+    if (failure_type !== undefined) updates.failure_type = failure_type;
+    if (parts_replaced !== undefined) updates.parts_replaced = parts_replaced;
+    if (labor_hours !== undefined) updates.labor_hours = labor_hours;
+    if (resolution_notes !== undefined) updates.resolution_notes = resolution_notes;
+    if (status === 'complete') updates.completed_at = new Date().toISOString();
+
+    const { data, error } = await supabase.from('maintenance_log')
+      .update(updates).eq('id', req.params.id).eq('company_id', req.user.company_id)
+      .select().single();
     if (error) throw error;
-    res.json({ trip: data });
-  } catch (err) {
-    console.error('PUT trip error:', err.message);
-    res.status(500).json({ error: 'Failed to update trip' });
-  }
-});
 
-// ── POST /api/trips/:id/predeparture ─────────────────────────
-router.post('/:id/predeparture', async (req, res) => {
-  const { check_items, notes } = req.body;
-  try {
-    const { data: trip, error: tripErr } = await supabase
-      .from('trips')
-      .select('id, status, vessel_id')
-      .eq('id', req.params.id)
-      .eq('company_id', req.user.company_id)
-      .single();
-    if (tripErr || !trip) return res.status(404).json({ error: 'Trip not found' });
-
-    const { error: pdErr } = await supabase
-      .from('trip_predeparture')
-      .insert({
+    if (status && existing && existing.status !== status) {
+      await supabase.from('work_order_history').insert({
         company_id: req.user.company_id,
-        trip_id: trip.id,
-        vessel_id: trip.vessel_id,
-        submitted_by: req.user.id,
-        submitted_by_name: req.user.full_name,
-        check_items: check_items || [],
-        notes: notes || null
+        maintenance_log_id: req.params.id,
+        changed_by_name: req.user.full_name,
+        old_status: existing.status,
+        new_status: status,
+        note: work_performed || null
       });
-    if (pdErr) throw pdErr;
 
-    await supabase.from('trips')
-      .update({ status: 'active', departure_time: new Date().toISOString() })
-      .eq('id', trip.id);
-
-    // Auto-create maintenance orders for flagged pre-departure items
-    const flaggedItems = (check_items || []).filter(item =>
-      item.flag && item.flag !== 'ok' && item.checked
-    );
-
-    if (flaggedItems.length > 0) {
-      const { data: vessel } = await supabase
-        .from('vessels').select('name').eq('id', trip.vessel_id).single();
-
-      const { data: managers } = await supabase
-        .from('users')
-        .select('id, full_name, email')
-        .eq('company_id', req.user.company_id)
-        .in('role', ['overlordadmin','company_admin','port_engineer','vessel_ops_manager'])
-        .eq('active', true);
-
-      for (const item of flaggedItems) {
-        const label = item.item_key || item.label || 'Pre-departure check item';
-        const system = label.includes('engine') || label.includes('Engine') ? 'Main Engine'
-          : label.includes('fuel') || label.includes('Fuel') ? 'Fuel System'
-          : label.includes('fire') || label.includes('Fire') ? 'Fire Suppression'
-          : label.includes('bilge') || label.includes('Bilge') ? 'Bilge System'
-          : label.includes('steer') || label.includes('Steer') ? 'Steering'
-          : label.includes('navig') || label.includes('Navig') ? 'Navigation Equipment'
-          : 'Safety Equipment';
-
-        const { data: order } = await supabase
-          .from('maintenance_orders')
-          .insert({
-            company_id: req.user.company_id,
-            vessel_id: trip.vessel_id,
-            submitted_by: req.user.id,
-            submitter_name: req.user.full_name,
-            system,
-            component: label,
-            description: `Flagged during pre-departure checklist by ${req.user.full_name}. Item: ${label}. Flag: ${item.flag}.`,
-            priority: item.flag === 'critical' ? 'high' : 'medium',
-            status: 'pending_review'
-          })
-          .select().single();
-
-        if (order && managers && managers.length > 0) {
+      // Notify managers when engineer marks complete
+      if (status === 'complete') {
+        const { data: vessel } = await supabase.from('vessels')
+          .select('name').eq('id', data.vessel_id).single();
+        const { data: managers } = await supabase.from('users')
+          .select('id, full_name, email')
+          .eq('company_id', req.user.company_id)
+          .in('role', ['overlordadmin','port_engineer','vessel_ops_manager','company_admin'])
+          .eq('active', true);
+        if (managers && managers.length > 0) {
           await supabase.from('notifications').insert(
             managers.map(m => ({
               company_id: req.user.company_id,
               user_id: m.id,
-              type: 'maintenance_order',
-              title: '⚠️ Pre-departure flag',
-              message: `${req.user.full_name} flagged "${label}" on ${vessel?.name || 'a vessel'} during pre-departure checklist`,
-              reference_id: order.id,
+              type: 'work_order_complete',
+              title: 'Work order completed',
+              message: `${req.user.full_name} completed work on ${vessel ? vessel.name : 'a vessel'}: ${data.system}${data.component ? ' — ' + data.component : ''}${work_performed ? '. Work: ' + work_performed : ''}`,
+              reference_id: req.params.id,
               read: false
             }))
           );
@@ -188,118 +240,37 @@ router.post('/:id/predeparture', async (req, res) => {
       }
     }
 
-    res.json({
-      message: 'Pre-departure submitted, trip is now active',
-      flags_raised: flaggedItems.length
-    });
+    res.json({ message: 'Work order updated', entry: data });
   } catch (err) {
-    console.error('POST predeparture error:', err.message);
-    res.status(500).json({ error: 'Failed to submit pre-departure', detail: err.message });
+    console.error('PUT log error:', err.message);
+    res.status(500).json({ error: 'Failed to update work order' });
   }
 });
 
-// ── POST /api/trips/:id/watch ─────────────────────────────────
-router.post('/:id/watch', async (req, res) => {
-  const { engineer_name, watch_start, watch_end, engine_readings, notes, flag_count } = req.body;
-  if (!engineer_name) return res.status(400).json({ error: 'engineer_name required' });
+// ── GET /api/maintenance/notifications ───────────────────────
+router.get('/notifications', async (req, res) => {
   try {
-    const { data: trip, error: tripErr } = await supabase
-      .from('trips')
-      .select('id, vessel_id, status')
-      .eq('id', req.params.id)
-      .eq('company_id', req.user.company_id)
-      .single();
-    if (tripErr || !trip) return res.status(404).json({ error: 'Trip not found' });
-    if (trip.status === 'closed') return res.status(403).json({ error: 'Trip is closed — no further entries allowed' });
-    if (trip.status !== 'active') return res.status(400).json({ error: 'Trip is not active' });
-
-    const { error } = await supabase
-      .from('trip_watch_entries')
-      .insert({
-        company_id: req.user.company_id,
-        trip_id: trip.id,
-        vessel_id: trip.vessel_id,
-        engineer_name,
-        watch_start: watch_start || null,
-        watch_end: watch_end || null,
-        engine_readings: engine_readings || [],
-        notes: notes || null,
-        flag_count: flag_count || 0
-      });
+    const { data, error } = await supabase.from('notifications')
+      .select('*').eq('user_id', req.user.id).eq('company_id', req.user.company_id)
+      .order('created_at', { ascending: false }).limit(50);
     if (error) throw error;
-    res.json({ message: 'Watch entry submitted' });
+    const unread = (data || []).filter(n => !n.read).length;
+    res.json({ notifications: data || [], unread });
   } catch (err) {
-    console.error('POST watch error:', err.message);
-    res.status(500).json({ error: 'Failed to submit watch entry', detail: err.message });
+    console.error('GET notifications error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch notifications' });
   }
 });
 
-// ── PUT /api/trips/:id/close ──────────────────────────────────
-router.put('/:id/close', async (req, res) => {
-  const { fuel_end, total_engine_hours, notes } = req.body;
+// ── PUT /api/maintenance/notifications/read-all ──────────────
+router.put('/notifications/read-all', async (req, res) => {
   try {
-    const { error } = await supabase
-      .from('trips')
-      .update({
-        status: 'closed',
-        closed_by: req.user.id,
-        closed_by_name: req.user.full_name,
-        arrival_time: new Date().toISOString(),
-        fuel_end: fuel_end || null,
-        total_engine_hours: total_engine_hours || null,
-        notes: notes || null
-      })
-      .eq('id', req.params.id)
-      .eq('company_id', req.user.company_id);
-    if (error) throw error;
-
-    // Auto-lock the trip ticket if one exists
-    const { data: ticket } = await supabase
-      .from('trip_tickets')
-      .select('id')
-      .eq('trip_id', req.params.id)
-      .eq('company_id', req.user.company_id)
-      .maybeSingle();
-
-    if (ticket) {
-      await supabase
-        .from('trip_tickets')
-        .update({
-          status: 'locked',
-          submitted_by: req.user.id,
-          submitted_by_name: req.user.full_name,
-          submitted_at: new Date().toISOString()
-        })
-        .eq('id', ticket.id);
-    }
-
-    res.json({ message: 'Trip closed and ticket locked' });
+    await supabase.from('notifications').update({ read: true })
+      .eq('user_id', req.user.id).eq('company_id', req.user.company_id);
+    res.json({ message: 'All notifications marked read' });
   } catch (err) {
-    console.error('PUT close error:', err.message);
-    res.status(500).json({ error: 'Failed to close trip', detail: err.message });
-  }
-});
-
-// ── GET /api/trips/:id ────────────────────────────────────────
-router.get('/:id', async (req, res) => {
-  try {
-    const [tripRes, pdRes, watchRes, engRes] = await Promise.all([
-      supabase.from('trips').select('*, vessel:vessels(id,name)').eq('id', req.params.id).eq('company_id', req.user.company_id).single(),
-      supabase.from('trip_predeparture').select('*').eq('trip_id', req.params.id),
-      supabase.from('trip_watch_entries').select('*').eq('trip_id', req.params.id).order('submitted_at', { ascending: true }),
-      supabase.from('vessel_engines').select('*').eq('company_id', req.user.company_id)
-    ]);
-    if (tripRes.error) throw tripRes.error;
-    const vesselEngines = engRes.data ? engRes.data.filter(e => e.vessel_id === tripRes.data.vessel_id) : [];
-    res.json({
-      trip: tripRes.data,
-      predeparture: pdRes.data ? pdRes.data[0] : null,
-      watchEntries: watchRes.data || [],
-      engines: vesselEngines
-    });
-  } catch (err) {
-    console.error('GET trip detail error:', err.message);
-    res.status(500).json({ error: 'Failed to fetch trip', detail: err.message });
+    console.error('PUT read-all error:', err.message);
+    res.status(500).json({ error: 'Failed to mark notifications read' });
   }
 });
 
