@@ -236,7 +236,7 @@ router.post('/:id/watch', async (req, res) => {
 
 // ── PUT /api/trips/:id/close ──────────────────────────────────
 router.put('/:id/close', async (req, res) => {
-  const { fuel_end, total_engine_hours, notes } = req.body;
+  const { fuel_end, fuel_burned, engine_hours_log, total_engine_hours, notes } = req.body;
   try {
     const { error } = await supabase
       .from('trips')
@@ -246,6 +246,7 @@ router.put('/:id/close', async (req, res) => {
         closed_by_name: req.user.full_name,
         arrival_time: new Date().toISOString(),
         fuel_end: fuel_end || null,
+        fuel_burned: fuel_burned || null,
         total_engine_hours: total_engine_hours || null,
         notes: notes || null
       })

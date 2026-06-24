@@ -369,22 +369,26 @@ select option{background:var(--surface2);color:var(--cream)}
 
 <!-- Close trip modal -->
 <div class="modal-overlay" id="modal-close-trip">
-  <div class="modal" style="max-width:400px">
+  <div class="modal" style="max-width:420px">
     <div class="modal-title"><i class="ti ti-lock"></i> Close trip</div>
-    <div style="font-size:13px;color:var(--steel);margin-bottom:1rem">This will lock the trip log. Make sure all watch entries are submitted first.</div>
+    <div style="font-size:13px;color:var(--steel);margin-bottom:1rem">Make sure all watch entries are submitted before closing.</div>
+
+    <!-- Per-engine hours — rendered dynamically -->
+    <div id="ct-engine-inputs"></div>
+
     <div class="form-group">
-      <label>Total engine hours this trip</label>
-      <input type="number" id="ct-engine-hours" placeholder="e.g. 8.5">
+      <label>Fuel burned (gallons)</label>
+      <input type="number" step="0.1" id="ct-fuel-burned" placeholder="e.g. 340">
     </div>
     <div class="form-group">
       <label>Fuel remaining (%)</label>
-      <input type="number" id="ct-fuel-end" placeholder="e.g. 42">
+      <input type="number" id="ct-fuel-end" placeholder="e.g. 42" min="0" max="100">
     </div>
     <div class="form-group">
       <label>Closing notes <span style="color:var(--steel);font-weight:400">(optional)</span></label>
       <textarea id="ct-notes" rows="2" placeholder="Notes for oncoming crew"></textarea>
     </div>
-    <div id="ct-error" class="error-msg"></div>
+    <div id="ct-error" class="error-msg" style="display:none"></div>
     <div class="modal-actions">
       <button class="btn" onclick="document.getElementById('modal-close-trip').classList.remove('open')">Cancel</button>
       <button class="btn btn-primary" id="ct-confirm-btn" onclick="confirmCloseTrip()">Close trip</button>
@@ -2941,10 +2945,26 @@ async function submitWatchEntry() {
 // ═══════════════════════════════════════════════════════════════
 
 function openCloseTripModal() {
-  document.getElementById('ct-engine-hours').value = '';
+  // Build per-engine hours inputs from currentTripEngines
+  const container = document.getElementById('ct-engine-inputs');
+  if (currentTripEngines && currentTripEngines.length > 0) {
+    const posLabel = p => ({ port:'Port', starboard:'Starboard', center:'Center', generator_1:'Generator 1', generator_2:'Generator 2', generator_3:'Generator 3' }[p] || p);
+    container.innerHTML = currentTripEngines.map(eng =>
+      '<div class="form-group">' +
+      '<label>' + posLabel(eng.position) + ' — ' + eng.engine_model + ' hours</label>' +
+      '<input type="number" step="0.1" id="ct-hrs-' + eng.id + '" placeholder="e.g. 8.5">' +
+      '</div>'
+    ).join('');
+  } else {
+    container.innerHTML = '<div class="form-group"><label>Total engine hours this trip</label><input type="number" step="0.1" id="ct-hrs-fallback" placeholder="e.g. 8.5"></div>';
+  }
+
+  document.getElementById('ct-fuel-burned').value = '';
   document.getElementById('ct-fuel-end').value = '';
   document.getElementById('ct-notes').value = '';
-  document.getElementById('ct-error').style.display = 'none';
+  const errEl = document.getElementById('ct-error');
+  errEl.style.display = 'none';
+  errEl.textContent = '';
   document.getElementById('ct-confirm-btn').disabled = false;
   document.getElementById('ct-confirm-btn').textContent = 'Close trip';
   document.getElementById('modal-close-trip').classList.add('open');
@@ -2957,12 +2977,30 @@ async function confirmCloseTrip() {
   err.style.display = 'none';
   btn.innerHTML = '<span class="spinner"></span>Closing...';
   btn.disabled = true;
+
+  // Collect per-engine hours
+  const engineHoursLog = [];
+  let totalHours = null;
+  if (currentTripEngines && currentTripEngines.length > 0) {
+    currentTripEngines.forEach(eng => {
+      const val = parseFloat((document.getElementById('ct-hrs-' + eng.id)||{}).value) || null;
+      if (val) {
+        engineHoursLog.push({ engine_id: eng.id, position: eng.position, model: eng.engine_model, hours: val });
+        if (!totalHours || val > totalHours) totalHours = val; // use highest (main engines)
+      }
+    });
+  } else {
+    totalHours = parseFloat((document.getElementById('ct-hrs-fallback')||{}).value) || null;
+  }
+
   try {
     const res = await fetch(API + '/api/trips/' + currentTrip.id + '/close', {
       method: 'PUT',
-      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token},
+      headers: {'Content-Type':'application/json','Authorization':'Bearer '+token},
       body: JSON.stringify({
-        total_engine_hours: parseFloat(document.getElementById('ct-engine-hours').value) || null,
+        total_engine_hours: totalHours,
+        engine_hours_log: engineHoursLog,
+        fuel_burned: parseFloat(document.getElementById('ct-fuel-burned').value) || null,
         fuel_end: parseFloat(document.getElementById('ct-fuel-end').value) || null,
         notes: document.getElementById('ct-notes').value || null
       })
