@@ -1554,16 +1554,30 @@ function renderMetrics() {
   const now = new Date();
   const todayStr = now.toISOString().split('T')[0];
   const weekAgo = new Date(now - 7*24*60*60*1000);
-  const todayLogs = allLogs.filter(l => (l.log_date||l.submitted_at||'').startsWith(todayStr));
-  const vesselsToday = new Set(todayLogs.map(l => l.vessel_id)).size;
-  document.getElementById('m-today').textContent = todayLogs.length;
+
+  // Source from trips (trip flow) + engine logs (legacy)
+  const tripsToday = (allTrips||[]).filter(t => (t.created_at||'').startsWith(todayStr));
+  const logsToday = allLogs.filter(l => (l.log_date||l.submitted_at||'').startsWith(todayStr));
+  const todayCount = tripsToday.length + logsToday.length;
+  const vesselsToday = new Set([...tripsToday.map(t => t.vessel_id), ...logsToday.map(l => l.vessel_id)]).size;
+
+  const tripsWeek = (allTrips||[]).filter(t => new Date(t.created_at) >= weekAgo).length;
+  const logsWeek = allLogs.filter(l => new Date(l.submitted_at) >= weekAgo).length;
+
+  // Flagged = pending maintenance orders (pre-dep flags auto-create these)
+  const openOrders = (allMaintenanceOrders||[]).filter(o => o.status === 'pending_review').length;
+
+  // Avg completion = closed trips / total trips %
+  const closedTrips = (allTrips||[]).filter(t => t.status === 'closed').length;
+  const totalTrips = (allTrips||[]).length;
+  const avgPct = totalTrips > 0 ? Math.round((closedTrips/totalTrips)*100) : 0;
+
+  document.getElementById('m-today').textContent = todayCount;
   document.getElementById('m-today-sub').textContent = vesselsToday + ' of ' + allVessels.length + ' vessels';
-  document.getElementById('m-week').textContent = allLogs.filter(l => new Date(l.submitted_at) >= weekAgo).length;
-  const flags = allLogs.reduce((s,l) => s+(parseInt(l.flag_count)||0),0);
-  document.getElementById('m-flags').textContent = flags;
-  document.getElementById('m-flags-card').className = 'metric-card ' + (flags > 0 ? 'metric-alert' : 'metric-ok');
-  const avg = allLogs.length ? Math.round(allLogs.reduce((s,l) => s+(parseInt(l.completion_pct)||0),0)/allLogs.length) : 0;
-  document.getElementById('m-pct').textContent = avg + '%';
+  document.getElementById('m-week').textContent = tripsWeek + logsWeek;
+  document.getElementById('m-flags').textContent = openOrders;
+  document.getElementById('m-flags-card').className = 'metric-card ' + (openOrders > 0 ? 'metric-alert' : 'metric-ok');
+  document.getElementById('m-pct').textContent = avgPct + '%';
   renderFleetStatusBar(todayStr);
 }
 
@@ -1571,11 +1585,13 @@ function renderFleetStatusBar(todayStr) {
   const bar = document.getElementById('fleet-status-bar');
   if (!bar) return;
   bar.innerHTML = allVessels.map(v => {
-    const submitted = allLogs.some(l => l.vessel_id === v.id && (l.log_date||'').startsWith(todayStr));
-    const flags = allLogs.filter(l => l.vessel_id === v.id).reduce((s,l) => s+(parseInt(l.flag_count)||0),0);
-    const color = flags > 0 ? 'var(--amber)' : submitted ? 'var(--green)' : 'var(--steel)';
-    const bg = flags > 0 ? 'rgba(230,126,34,0.1)' : submitted ? 'rgba(39,174,96,0.1)' : 'rgba(107,114,128,0.1)';
-    const icon = flags > 0 ? 'ti-alert-triangle' : submitted ? 'ti-circle-check' : 'ti-clock';
+    const hasTrip = (allTrips||[]).some(t => t.vessel_id === v.id && (t.created_at||'').startsWith(todayStr));
+    const hasLog = allLogs.some(l => l.vessel_id === v.id && (l.log_date||'').startsWith(todayStr));
+    const hasOpenOrder = (allMaintenanceOrders||[]).some(o => o.vessel_id === v.id && o.status === 'pending_review');
+    const submitted = hasTrip || hasLog;
+    const color = hasOpenOrder ? 'var(--amber)' : submitted ? 'var(--green)' : 'var(--steel)';
+    const bg = hasOpenOrder ? 'rgba(230,126,34,0.1)' : submitted ? 'rgba(39,174,96,0.1)' : 'rgba(107,114,128,0.1)';
+    const icon = hasOpenOrder ? 'ti-alert-triangle' : submitted ? 'ti-circle-check' : 'ti-clock';
     return '<div style="display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px;border:1px solid ' + color + ';background:' + bg + ';cursor:pointer" onclick="openVesselDetail(\'' + v.id + '\',\'' + v.name + '\')">' +
       '<i class="ti ' + icon + '" style="color:' + color + ';font-size:14px"></i>' +
       '<span style="font-size:12px;font-weight:500;color:var(--cream)">' + v.name.replace('M/V ','') + '</span>' +
@@ -1689,22 +1705,28 @@ function populateVesselFilter() {
 
 function renderFlags() {
   const el = document.getElementById('dash-flags-list');
-  const flagged = allLogs.filter(l => parseInt(l.flag_count)>0).sort((a,b) => new Date(b.submitted_at)-new Date(a.submitted_at));
-  if (!flagged.length) {
-    el.innerHTML = '<div class="empty-state" style="color:var(--green)"><i class="ti ti-circle-check" style="font-size:24px;display:block;margin-bottom:8px"></i>No flagged items — all clear</div>';
+  const pending = (allMaintenanceOrders||[])
+    .filter(o => o.status === 'pending_review')
+    .sort((a,b) => new Date(b.created_at)-new Date(a.created_at));
+
+  if (!pending.length) {
+    el.innerHTML = '<div class="empty-state" style="color:var(--green)"><i class="ti ti-circle-check" style="font-size:24px;display:block;margin-bottom:8px"></i>No open items — all clear</div>';
     return;
   }
-  el.innerHTML = flagged.map(l => {
-    const vessel = allVessels.find(v => v.id === l.vessel_id);
+  el.innerHTML = pending.map(o => {
+    const vessel = allVessels.find(v => v.id === o.vessel_id);
     const vName = vessel ? vessel.name : 'Unknown vessel';
-    const d = new Date(l.submitted_at);
+    const d = new Date(o.created_at);
+    const pc = { high:'var(--red)', medium:'var(--amber)', low:'var(--steel)' }[o.priority] || 'var(--amber)';
     return '<div class="flag-row">' +
-      '<div class="flag-icon"><i class="ti ti-alert-triangle"></i></div>' +
+      '<div class="flag-icon" style="color:' + pc + '"><i class="ti ti-alert-triangle"></i></div>' +
       '<div style="flex:1;min-width:0">' +
-      '<div style="font-size:13px;font-weight:500;color:var(--cream)">' + vName + ' — ' + l.flag_count + ' item' + (l.flag_count>1?'s':'') + ' flagged</div>' +
-      '<div style="font-size:12px;color:var(--steel);margin-top:2px">' + (l.engineer_name||'Unknown') + ' — ' + d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + '</div>' +
-      (l.notes?'<div style="font-size:12px;color:var(--steel);margin-top:4px;font-style:italic">&ldquo;' + l.notes.slice(0,120) + (l.notes.length>120?'...':'') + '&rdquo;</div>':'') +
-      '</div></div>';
+      '<div style="font-size:13px;font-weight:500;color:var(--cream)">' + vName + ' — ' + o.system + (o.component ? ' · ' + o.component : '') + '</div>' +
+      '<div style="font-size:12px;color:var(--steel);margin-top:2px">' + (o.submitter_name||'Unknown') + ' — ' + d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + '</div>' +
+      '<div style="font-size:12px;color:var(--steel);margin-top:2px">' + o.description + '</div>' +
+      '</div>' +
+      '<span style="font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid ' + pc + ';color:' + pc + ';white-space:nowrap">' + (o.priority||'medium') + '</span>' +
+      '</div>';
   }).join('');
 }
 
@@ -3472,12 +3494,11 @@ async function loadEngOrders(type) {
 async function unlockTripTicket() {
   if (!confirm('Unlock this ticket for editing?')) return;
   try {
-    const res = await fetch(API + '/api/trip-tickets/' + currentTripTicketId, {
+    const res = await fetch(API + '/api/trip-tickets/' + currentTripTicketId + '/unlock', {
       method: 'PUT',
-      headers: {'Content-Type':'application/json','Authorization':'Bearer '+token},
-      body: JSON.stringify({ status: 'draft' })
+      headers: {'Content-Type':'application/json','Authorization':'Bearer '+token}
     });
-    if (!res.ok) throw new Error('Failed');
+    if (!res.ok) { const d = await res.json(); throw new Error(d.error||'Failed'); }
     ttIsLocked = false;
     document.getElementById('tt-locked-banner').style.display = 'none';
     document.getElementById('tt-action-btns').style.display = 'flex';
