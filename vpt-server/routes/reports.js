@@ -3,20 +3,20 @@ const supabase = require('../lib/supabase');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const router = express.Router();
 router.use(requireAuth);
-
+ 
 const MANAGE_ROLES = ['overlordadmin','company_admin','port_engineer','vessel_ops_manager'];
-
+ 
 // ── GET /api/reports/compliance ───────────────────────────────
 // Returns all voyage, maintenance, and drill data for a date range
 // Frontend formats this as a printable HTML compliance report
 router.get('/compliance', requireRole(MANAGE_ROLES), async (req, res) => {
   const { date_from, date_to, vessel_id } = req.query;
   const cid = req.user.company_id;
-
+ 
   if (!date_from || !date_to) {
     return res.status(400).json({ error: 'date_from and date_to are required' });
   }
-
+ 
   try {
     const [companyRes, vesselRes, tripsRes, ticketsRes, watchRes, maintRes, logsRes] = await Promise.all([
       supabase.from('companies').select('id,name').eq('id', cid).single(),
@@ -51,14 +51,14 @@ router.get('/compliance', requireRole(MANAGE_ROLES), async (req, res) => {
         .gte('log_date', date_from)
         .lte('log_date', date_to)
     ]);
-
+ 
     const tickets = ticketsRes.data || [];
     const trips = (tripsRes.data || []).map(t => ({
       ...t,
       ticket: tickets.find(tk => tk.trip_id === t.id) || null,
       watches: (watchRes.data || []).filter(w => w.trip_id === t.id)
     }));
-
+ 
     // Extract all drills from tickets
     const drills = [];
     tickets.forEach(tk => {
@@ -72,10 +72,10 @@ router.get('/compliance', requireRole(MANAGE_ROLES), async (req, res) => {
         });
       });
     });
-
+ 
     let vessels = vesselRes.data || [];
     if (vessel_id) vessels = vessels.filter(v => v.id === vessel_id);
-
+ 
     res.json({
       company: companyRes.data,
       date_from,
@@ -93,5 +93,6 @@ router.get('/compliance', requireRole(MANAGE_ROLES), async (req, res) => {
     res.status(500).json({ error: 'Failed to generate report', detail: err.message });
   }
 });
-
+ 
 module.exports = router;
+ 
