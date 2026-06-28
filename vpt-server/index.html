@@ -324,46 +324,216 @@ select option{background:var(--surface2);color:var(--cream)}
   </div>
 </div>
 
-<!-- Underway / Watch entry screen -->
+<!-- Underway / Active trip screen — multi-tab -->
 <div id="screen-underway" class="screen">
   <div class="topbar">
-    <button class="back-btn" onclick="show('screen-vessels')"><i class="ti ti-arrow-left"></i></button>
+    <button class="back-btn" onclick="show('screen-vessels')" title="Back"><i class="ti ti-arrow-left"></i></button>
     <div>
       <div class="topbar-title" id="uw-vessel-name"></div>
       <div style="font-size:12px;color:var(--gold)" id="uw-trip-status">Active trip</div>
     </div>
+    <button class="btn btn-sm" onclick="openCloseTripModal()" style="margin-left:auto;border-color:var(--red);color:var(--red);padding:6px 12px">
+      <i class="ti ti-lock"></i> Close
+    </button>
   </div>
-  <div class="card">
-    <div class="section-header"><i class="ti ti-user"></i> Watch info</div>
-    <div class="form-group">
-      <label>Engineer / Officer on watch <span class="required-star">*</span></label>
-      <input type="text" id="uw-engineer-name" placeholder="Full name">
-    </div>
-    <div class="reading-row">
-      <div><div class="reading-label">Watch start</div><input class="reading-input" type="time" id="uw-watch-start"></div>
-      <div><div class="reading-label">Watch end</div><input class="reading-input" type="time" id="uw-watch-end"></div>
-    </div>
 
-    <div class="section-header"><i class="ti ti-gauge"></i> Engine readings</div>
-    <div id="uw-engine-readings"></div>
+  <!-- Quick action row -->
+  <div style="display:flex;gap:8px;padding:10px 16px;overflow-x:auto;border-bottom:1px solid var(--border);background:var(--surface)">
+    <button type="button" onclick="if(currentTrip)openTripTicket(currentTrip.id)" class="btn btn-sm" style="white-space:nowrap"><i class="ti ti-file-invoice"></i> Trip Ticket</button>
+    <button type="button" onclick="openReportIssueScreen()" class="btn btn-sm" style="white-space:nowrap"><i class="ti ti-alert-triangle"></i> Report Issue</button>
+    <button type="button" onclick="openViewRecentLog()" class="btn btn-sm" style="white-space:nowrap"><i class="ti ti-clipboard-list"></i> View Log</button>
+  </div>
 
-    <div class="section-header"><i class="ti ti-alert-triangle"></i> Flags</div>
-    <div class="form-group">
-      <label>Flag count</label>
-      <input type="number" id="uw-flag-count" placeholder="0" min="0" value="0">
+  <!-- Tab bar -->
+  <div class="nav-tabs" style="padding:0 16px">
+    <button class="nav-tab active" onclick="switchUwTab('watch',this)">Watch</button>
+    <button class="nav-tab" onclick="switchUwTab('radio',this)">Radio</button>
+    <button class="nav-tab" onclick="switchUwTab('logbook',this)">Logbook</button>
+    <button class="nav-tab" onclick="switchUwTab('manifest',this)">Manifest</button>
+    <button class="nav-tab" onclick="switchUwTab('waste',this)">Waste</button>
+  </div>
+
+  <!-- WATCH ENTRY TAB -->
+  <div id="uw-tab-watch">
+    <div class="card">
+      <div class="section-header"><i class="ti ti-user"></i> Watch info</div>
+      <div class="form-group">
+        <label>Engineer / Officer on watch <span class="required-star">*</span></label>
+        <input type="text" id="uw-engineer-name" placeholder="Full name">
+      </div>
+      <div class="reading-row">
+        <div><div class="reading-label">Watch start</div><input class="reading-input" type="time" id="uw-watch-start"></div>
+        <div><div class="reading-label">Watch end</div><input class="reading-input" type="time" id="uw-watch-end"></div>
+      </div>
+      <div class="section-header"><i class="ti ti-gauge"></i> Engine readings</div>
+      <div id="uw-engine-readings"></div>
+      <div class="section-header"><i class="ti ti-alert-triangle"></i> Flags</div>
+      <div class="form-group">
+        <label>Flag count</label>
+        <input type="number" id="uw-flag-count" placeholder="0" min="0" value="0">
+      </div>
+      <div class="section-header"><i class="ti ti-notes"></i> Notes</div>
+      <textarea id="uw-notes" rows="3" placeholder="Observations, issues, or items to note"></textarea>
+      <div class="submit-bar">
+        <button class="btn btn-primary" id="uw-submit-btn" onclick="submitWatchEntry()">Submit watch entry</button>
+      </div>
     </div>
+  </div>
 
-    <div class="section-header"><i class="ti ti-notes"></i> Notes</div>
-    <textarea id="uw-notes" rows="3" placeholder="Observations, issues, or items to note"></textarea>
-
-    <div class="submit-bar" style="display:flex;gap:8px">
-      <button class="btn" id="uw-close-btn" onclick="openCloseTripModal()" style="flex:0 0 auto;width:auto;padding:12px 16px;border-color:var(--red);color:var(--red)">
-        <i class="ti ti-lock"></i> Close trip
-      </button>
-      <button class="btn btn-primary" id="uw-submit-btn" onclick="submitWatchEntry()" style="flex:1">
-        Submit watch entry
-      </button>
+  <!-- RADIO LOG TAB -->
+  <div id="uw-tab-radio" style="display:none">
+    <div class="card">
+      <div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:12px">Radio Log</div>
+      <div class="form-group">
+        <label>Time</label>
+        <input type="datetime-local" id="rl-time" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-group">
+          <label>Channel</label>
+          <input type="text" id="rl-channel" placeholder="e.g. Ch 16" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px">
+        </div>
+        <div class="form-group">
+          <label>Type</label>
+          <select id="rl-type" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px">
+            <option value="routine">Routine</option>
+            <option value="port_ops">Port Ops</option>
+            <option value="safety">Safety</option>
+            <option value="urgency">Urgency</option>
+            <option value="distress">Distress</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Station Called</label>
+        <input type="text" id="rl-station" placeholder="e.g. LA Harbor Traffic, Platform Alpha" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px">
+      </div>
+      <div class="form-group">
+        <label>Message Summary <span class="required-star">*</span></label>
+        <textarea id="rl-message" rows="3" placeholder="Brief description of communication..." style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-family:inherit;font-size:14px"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Operator</label>
+        <input type="text" id="rl-operator" placeholder="Name of radio operator" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px">
+      </div>
+      <div id="rl-error" style="color:var(--red);font-size:13px;display:none;margin-bottom:10px"></div>
+      <button type="button" onclick="submitRadioLog()" class="btn btn-primary" style="width:100%">Log Communication</button>
     </div>
+    <div class="card" id="rl-history-list"><div class="empty-state">No radio log entries yet.</div></div>
+  </div>
+
+  <!-- LOGBOOK TAB -->
+  <div id="uw-tab-logbook" style="display:none">
+    <div class="card">
+      <div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:12px">Logbook Entry</div>
+      <div style="font-size:12px;color:var(--steel);margin-bottom:12px">Notes to next operator — generator status, steering pump, communications, drills, etc.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-group">
+          <label>Generator in use</label>
+          <input type="text" id="lb-generator" placeholder="e.g. Gen 1, Port, Both" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px">
+        </div>
+        <div class="form-group">
+          <label>Steering pump</label>
+          <input type="text" id="lb-steering" placeholder="e.g. Main, Aux" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Entry / Notes <span class="required-star">*</span></label>
+        <textarea id="lb-notes" rows="5" placeholder="Ticket number, radio communications, drills completed, equipment status, notes for oncoming crew..." style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-family:inherit;font-size:14px"></textarea>
+      </div>
+      <div id="lb-error" style="color:var(--red);font-size:13px;display:none;margin-bottom:10px"></div>
+      <button type="button" onclick="submitLogbookEntry()" class="btn btn-primary" style="width:100%">Save Entry</button>
+    </div>
+    <div class="card" id="lb-history-list"><div class="empty-state">No logbook entries yet.</div></div>
+  </div>
+
+  <!-- PASSENGER MANIFEST TAB -->
+  <div id="uw-tab-manifest" style="display:none">
+    <div class="card">
+      <div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:12px">Passenger Manifest</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-group">
+          <label>Leg #</label>
+          <input type="number" id="pm-leg" value="1" min="1" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px">
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <input type="text" id="pm-desc" placeholder="e.g. Dock to Platform A" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px">
+        </div>
+      </div>
+      <div id="pm-passenger-list" style="margin-bottom:12px"></div>
+      <button type="button" onclick="addPassengerRow()" class="btn btn-sm" style="width:100%;margin-bottom:12px"><i class="ti ti-plus"></i> Add Passenger</button>
+      <div id="pm-error" style="color:var(--red);font-size:13px;display:none;margin-bottom:10px"></div>
+      <button type="button" onclick="submitManifest()" class="btn btn-primary" style="width:100%">Save Manifest</button>
+    </div>
+    <div class="card" id="pm-history-list"><div class="empty-state">No manifests saved yet.</div></div>
+  </div>
+
+  <!-- WASTE MANAGEMENT TAB -->
+  <div id="uw-tab-waste" style="display:none">
+    <div class="card">
+      <div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:12px">Waste Management Log</div>
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" id="wm-date" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px">
+      </div>
+      <div style="padding:10px 0;border-bottom:1px solid var(--border)">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <input type="checkbox" id="wm-garbage" style="width:18px;height:18px">
+          <span>Garbage disposed overboard</span>
+        </label>
+        <div id="wm-garbage-detail" style="display:none;margin-top:10px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div class="form-group"><label>Location</label><input type="text" id="wm-dispose-loc" placeholder="Lat/Long or waypoint" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px"></div>
+            <div class="form-group"><label>Method</label><input type="text" id="wm-dispose-method" placeholder="e.g. Compacted, ground" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px"></div>
+          </div>
+        </div>
+      </div>
+      <div style="padding:10px 0;border-bottom:1px solid var(--border)">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <input type="checkbox" id="wm-sewage" style="width:18px;height:18px">
+          <span>Sewage discharged</span>
+        </label>
+        <div id="wm-sewage-detail" style="display:none;margin-top:10px">
+          <div class="form-group"><label>Location</label><input type="text" id="wm-sewage-loc" placeholder="Location of discharge" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px"></div>
+        </div>
+      </div>
+      <div style="padding:10px 0;border-bottom:1px solid var(--border)">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <input type="checkbox" id="wm-oil-record" style="width:18px;height:18px">
+          <span>Oil record book updated</span>
+        </label>
+      </div>
+      <div class="form-group" style="margin-top:12px">
+        <label>Notes</label>
+        <textarea id="wm-notes" rows="2" placeholder="Additional notes..." style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-family:inherit;font-size:14px"></textarea>
+      </div>
+      <div id="wm-error" style="color:var(--red);font-size:13px;display:none;margin-bottom:10px"></div>
+      <button type="button" onclick="submitWasteLog()" class="btn btn-primary" style="width:100%">Save Waste Log</button>
+    </div>
+  </div>
+</div>
+
+<!-- Monthly Checklist Screen -->
+<div id="screen-monthly-checklist" class="screen">
+  <div class="topbar">
+    <button class="back-btn" onclick="loadDashboard();show('screen-dashboard')" title="Back"><i class="ti ti-arrow-left"></i></button>
+    <div><div class="topbar-title">Monthly Checklist</div></div>
+  </div>
+  <div style="padding:16px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <div class="form-group">
+        <label>Vessel</label>
+        <select id="mc-vessel" onchange="loadMonthlyChecklist()" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px">
+          <option value="">Select vessel...</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Month</label>
+        <input type="month" id="mc-month" onchange="loadMonthlyChecklist()" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px">
+      </div>
+    </div>
+    <div id="mc-content"><div class="empty-state">Select a vessel and month to begin.</div></div>
   </div>
 </div>
 
@@ -513,6 +683,7 @@ select option{background:var(--surface2);color:var(--cream)}
       <button id="submit-log-btn" onclick="switchToCrewMode()" class="btn btn-primary btn-sm" style="display:none"><i class="ti ti-plus"></i> Submit a log</button>
       <button id="eng-dashboard-btn" onclick="loadEngineeringDashboard();show('screen-engineering')" class="btn btn-primary btn-sm" style="display:none"><i class="ti ti-tools"></i> My Work Orders</button>
       <button id="compliance-btn" onclick="openComplianceReport()" class="btn btn-sm" style="display:none" title="Export USCG compliance report"><i class="ti ti-file-certificate"></i> Compliance Report</button>
+      <button id="monthly-check-btn" onclick="openMonthlyChecklist()" class="btn btn-sm" style="display:none" title="Monthly vessel checklist"><i class="ti ti-checklist"></i> Monthly Check</button>
       <button id="maint-nav-btn" onclick="loadMaintenance();show('screen-maintenance')" class="btn btn-sm" style="display:none"><i class="ti ti-tool"></i> Maintenance</button>
       <button id="fleet-nav-btn" onclick="loadFleetStatus();show('screen-fleet-status')" class="btn btn-sm" style="display:none"><i class="ti ti-ship"></i> Fleet</button>
       <button id="analytics-nav-btn" onclick="loadAnalytics();show('screen-analytics')" class="btn btn-sm" style="display:none"><i class="ti ti-chart-line"></i> Analytics</button>
@@ -1084,7 +1255,7 @@ let editingLogId = null;
 
 const CHECKS = {
   predep: [
-    'Underwater hull observed — no objects, lines, or debris present',
+    'Underwater hull observed  -  no objects, lines, or debris present',
     'Vessel inspected for signs of tampering; if found, do not disturb and contact Harbor Operations Manager',
     'Fenders and mooring cleats inspected and in good condition',
     'Decks and topside clear of loose gear and trash; safety equipment properly stowed',
@@ -1107,7 +1278,7 @@ const CHECKS = {
     'Generator oil level verified',
     'Generator coolant level verified',
     'Generator started and supplying power; all breakers set',
-    'Engine room visual inspection complete — no fuel, oil, or water leaks; no loose gear',
+    'Engine room visual inspection complete  -  no fuel, oil, or water leaks; no loose gear',
     'Rudder linkage inspected in lazarette',
     'All bilge spaces checked and dry; shaft and rudder packing glands satisfactory',
     'Hydraulic oil levels in steering gear verified',
@@ -1120,7 +1291,7 @@ const CHECKS = {
     'Engine oil at correct level and condition on all engines',
     'Transmission / gearbox fluid verified',
     'Hydraulic fluid level verified',
-    'Fuel filters clear — no water or sediment present',
+    'Fuel filters clear  -  no water or sediment present',
     'Lube oil filter condition acceptable',
     'Coolant level and condition satisfactory on all engines',
     'Air filters inspected and clear'
@@ -1134,15 +1305,15 @@ const CHECKS = {
     'Bilge pumps tested and operational',
     'Engine room ventilation clear and unobstructed',
     'Emergency shutoffs accessible, labeled, and operational',
-    'Life jackets — correct number, vessel name stenciled, reflective tape present, properly stowed',
+    'Life jackets  -  correct number, vessel name stenciled, reflective tape present, properly stowed',
     'Ring buoy present with line; distress signals correct number and properly stowed',
     'Navigation lights operational and tested',
     'All gauges reading within normal operating range',
-    'Wheelhouse powered up — radars, GPS, radios, fathometer operational',
+    'Wheelhouse powered up  -  radars, GPS, radios, fathometer operational',
     'Radio check conducted with VTS and AMC operations office',
     'Weather and tidal forecast obtained for period of operation',
     'Steering and throttles checked and responding correctly',
-    'Logbook entry made — fuel on board, departure time, overall material condition of vessel'
+    'Logbook entry made  -  fuel on board, departure time, overall material condition of vessel'
   ]
 };
 
@@ -1232,6 +1403,8 @@ if (role === 'crew' || role === 'boat_crew') {
       document.getElementById('submit-log-btn').style.display = canManage ? 'inline-flex' : 'none';
       const compBtn = document.getElementById('compliance-btn');
       if (compBtn) compBtn.style.display = canManage ? 'inline-flex' : 'none';
+      const mcBtn = document.getElementById('monthly-check-btn');
+      if (mcBtn) mcBtn.style.display = canManage ? 'inline-flex' : 'none';
       loadDashboard();
       loadCompanySettings();
       if (canManage) {
@@ -1289,7 +1462,7 @@ async function loadVessels() {
       const activeTrip = activeTrips.find(t => t.vessel_id === v.id);
       const tripStatus = activeTrip ? activeTrip.status : 'none';
       const statusColor = tripStatus === 'active' ? 'var(--green)' : tripStatus === 'predeparture' ? 'var(--amber)' : 'var(--steel)';
-      const statusLabel = tripStatus === 'active' ? 'Trip active — tap to continue' : tripStatus === 'predeparture' ? 'Pre-departure in progress' : 'No active trip — start pre-departure';
+      const statusLabel = tripStatus === 'active' ? 'Trip active  -  tap to continue' : tripStatus === 'predeparture' ? 'Pre-departure in progress' : 'No active trip  -  start pre-departure';
       const statusIcon = tripStatus === 'active' ? 'ti-circle-check' : tripStatus === 'predeparture' ? 'ti-clock' : 'ti-plus';
       const card = document.createElement('div');
       card.className = 'vessel-card-trip trip-status-' + tripStatus;
@@ -1622,7 +1795,7 @@ function renderDashVessels() {
       '<div style="flex:1;min-width:0">' +
       '<div class="vrow-name">' + v.name + '</div>' +
       '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0">' + tripBadge + maintBadge + '</div>' +
-      '<div class="vrow-meta">Last log: ' + lastDate + (avg!==null?' — avg '+avg+'% complete':'') + '</div>' +
+      '<div class="vrow-meta">Last log: ' + lastDate + (avg!==null?'  -  avg '+avg+'% complete':'') + '</div>' +
       (avg!==null?'<div class="pct-bar-bg"><div class="pct-bar-fill" style="width:'+avg+'%"></div></div>':'') +
       '</div>' +
       '<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0">' +
@@ -1673,13 +1846,13 @@ function renderRecent() {
         '</div></div>';
     } else {
       const t = item.data;
-      const depTime = t.departure_time ? new Date(t.departure_time).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : '—';
-      const arrTime = t.arrival_time ? new Date(t.arrival_time).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : '—';
+      const depTime = t.departure_time ? new Date(t.departure_time).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : ' - ';
+      const arrTime = t.arrival_time ? new Date(t.arrival_time).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : ' - ';
       return '<div class="log-row" style="cursor:pointer" onclick="openTripTicket(\'' + t.id + '\')">' +
         '<div style="display:flex;justify-content:space-between;align-items:center">' +
         '<div style="display:flex;gap:6px;align-items:center">' +
         '<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(45,212,191,0.1);color:var(--green);border:1px solid rgba(45,212,191,0.3)">Trip</span>' +
-        '<span style="font-size:14px;font-weight:500;color:var(--cream)">' + vName + (t.trip_number ? ' — #'+t.trip_number : '') + '</span></div>' +
+        '<span style="font-size:14px;font-weight:500;color:var(--cream)">' + vName + (t.trip_number ? '  -  #'+t.trip_number : '') + '</span></div>' +
         '<span style="font-size:12px;color:var(--steel)">' + dateStr + '</span></div>' +
         '<div style="font-size:12px;color:var(--steel);margin-top:4px">Depart ' + depTime + ' → Arrive ' + arrTime + (t.total_engine_hours ? ' · '+t.total_engine_hours+' engine hrs' : '') + '</div>' +
         '<div style="font-size:11px;color:var(--gold);margin-top:2px"><i class="ti ti-file-invoice"></i> Tap to view ticket</div>' +
@@ -1710,7 +1883,7 @@ function renderFlags() {
     .sort((a,b) => new Date(b.created_at)-new Date(a.created_at));
 
   if (!pending.length) {
-    el.innerHTML = '<div class="empty-state" style="color:var(--green)"><i class="ti ti-circle-check" style="font-size:24px;display:block;margin-bottom:8px"></i>No open items — all clear</div>';
+    el.innerHTML = '<div class="empty-state" style="color:var(--green)"><i class="ti ti-circle-check" style="font-size:24px;display:block;margin-bottom:8px"></i>No open items  -  all clear</div>';
     return;
   }
   el.innerHTML = pending.map(o => {
@@ -1721,8 +1894,8 @@ function renderFlags() {
     return '<div class="flag-row">' +
       '<div class="flag-icon" style="color:' + pc + '"><i class="ti ti-alert-triangle"></i></div>' +
       '<div style="flex:1;min-width:0">' +
-      '<div style="font-size:13px;font-weight:500;color:var(--cream)">' + vName + ' — ' + o.system + (o.component ? ' · ' + o.component : '') + '</div>' +
-      '<div style="font-size:12px;color:var(--steel);margin-top:2px">' + (o.submitter_name||'Unknown') + ' — ' + d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + '</div>' +
+      '<div style="font-size:13px;font-weight:500;color:var(--cream)">' + vName + '  -  ' + o.system + (o.component ? ' · ' + o.component : '') + '</div>' +
+      '<div style="font-size:12px;color:var(--steel);margin-top:2px">' + (o.submitter_name||'Unknown') + '  -  ' + d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + '</div>' +
       '<div style="font-size:12px;color:var(--steel);margin-top:2px">' + o.description + '</div>' +
       '</div>' +
       '<span style="font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid ' + pc + ';color:' + pc + ';white-space:nowrap">' + (o.priority||'medium') + '</span>' +
@@ -1791,7 +1964,7 @@ function openVesselDetail(vesselId, vesselName) {
     }
   }
 
-  // Log history — shows trip watch entries AND standalone engine log sheets
+  // Log history  -  shows trip watch entries AND standalone engine log sheets
   const logsEl = document.getElementById('vd-logs');
   if (logsEl) {
     logsEl.innerHTML = '<div class="empty-state"><span class="spinner spinner-dark"></span></div>';
@@ -2043,7 +2216,7 @@ document.addEventListener('click', e => {
 // MAINTENANCE ORDER (crew submission)
 // ═══════════════════════════════════════════════════════════════
 
-// openMaintenanceOrder is defined below near the modal — this stub intentionally left blank
+// openMaintenanceOrder is defined below near the modal  -  this stub intentionally left blank
 
 async function submitMaintenanceOrder() {
   const vessel_id = document.getElementById('mo-vessel-id').value;
@@ -2073,7 +2246,7 @@ async function submitMaintenanceOrder() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Submission failed');
     closeMaintenanceOrderModal();
-    alert('Issue reported — port engineer and vessel ops manager have been notified.');
+    alert('Issue reported  -  port engineer and vessel ops manager have been notified.');
     loadNotifications();
   } catch(e) {
     err.textContent = e.message || 'Failed to submit. Please try again.';
@@ -2116,7 +2289,7 @@ function renderPendingOrders() {
   const el = document.getElementById('maint-orders-list');
   const pending = maintOrders.filter(o => o.status === 'pending_review');
   if (!pending.length) {
-    el.innerHTML = '<div class="empty-state" style="color:var(--green)"><i class="ti ti-circle-check" style="font-size:24px;display:block;margin-bottom:8px"></i>No pending orders — all clear</div>';
+    el.innerHTML = '<div class="empty-state" style="color:var(--green)"><i class="ti ti-circle-check" style="font-size:24px;display:block;margin-bottom:8px"></i>No pending orders  -  all clear</div>';
     return;
   }
   el.innerHTML = pending.map(o => {
@@ -2126,7 +2299,7 @@ function renderPendingOrders() {
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
       '<div style="flex:1">' +
       '<div style="font-size:14px;font-weight:600;color:var(--cream)">' + (o.vessel ? o.vessel.name : 'Unknown vessel') + '</div>' +
-      '<div style="font-size:13px;color:var(--gold);margin-top:2px">' + o.system + (o.component ? ' — ' + o.component : '') + '</div>' +
+      '<div style="font-size:13px;color:var(--gold);margin-top:2px">' + o.system + (o.component ? '  -  ' + o.component : '') + '</div>' +
       '<div style="font-size:12px;color:var(--steel);margin-top:2px">Reported by ' + o.submitter_name + ' · ' + d.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + '</div>' +
       '<div style="font-size:13px;color:var(--cream);margin-top:6px;padding:8px;background:var(--surface2);border-radius:6px">' + o.description + '</div>' +
       (o.error_codes ? '<div style="font-size:11px;color:var(--steel);margin-top:4px">Error codes: ' + o.error_codes + '</div>' : '') +
@@ -2149,7 +2322,7 @@ function approveOrder(orderId) {
   currentApproveOrderId = orderId;
   const summary = document.getElementById('approve-order-summary');
   summary.innerHTML = '<div style="font-weight:600;color:var(--cream);margin-bottom:4px">' + (order.vessel ? order.vessel.name : 'Unknown vessel') + '</div>' +
-    '<div style="color:var(--gold)">' + order.system + (order.component ? ' — ' + order.component : '') + '</div>' +
+    '<div style="color:var(--gold)">' + order.system + (order.component ? '  -  ' + order.component : '') + '</div>' +
     '<div style="margin-top:4px">' + order.description + '</div>' +
     '<div style="margin-top:4px;color:var(--steel)">Reported by ' + order.submitter_name + '</div>';
   const sel = document.getElementById('approve-assigned-to');
@@ -2216,7 +2389,7 @@ function dismissOrder(orderId) {
   currentDismissOrderId = orderId;
   const summary = document.getElementById('dismiss-order-summary');
   summary.innerHTML = '<div style="font-weight:600;color:var(--cream);margin-bottom:4px">' + (order.vessel ? order.vessel.name : 'Unknown vessel') + '</div>' +
-    '<div style="color:var(--gold)">' + order.system + (order.component ? ' — ' + order.component : '') + '</div>' +
+    '<div style="color:var(--gold)">' + order.system + (order.component ? '  -  ' + order.component : '') + '</div>' +
     '<div style="margin-top:4px">' + order.description + '</div>';
   document.getElementById('dismiss-note').value = '';
   document.getElementById('dismiss-error').style.display = 'none';
@@ -2270,7 +2443,7 @@ function renderWorkList() {
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
       '<div style="flex:1">' +
       '<div style="font-size:14px;font-weight:600;color:var(--cream)">' + (e.vessel ? e.vessel.name : 'Unknown') + '</div>' +
-      '<div style="font-size:13px;color:var(--gold);margin-top:2px">' + e.system + (e.component ? ' — ' + e.component : '') + '</div>' +
+      '<div style="font-size:13px;color:var(--gold);margin-top:2px">' + e.system + (e.component ? '  -  ' + e.component : '') + '</div>' +
       (e.assigned_to ? '<div style="font-size:12px;color:var(--steel);margin-top:2px"><i class="ti ti-user" style="font-size:11px"></i> ' + e.assigned_to + '</div>' : '') +
       (e.parts_needed ? '<div style="font-size:12px;color:var(--amber);margin-top:2px"><i class="ti ti-package" style="font-size:11px"></i> ' + e.parts_needed + '</div>' : '') +
       '</div>' +
@@ -2305,7 +2478,7 @@ function updateWorkOrder(entryId, status) {
   if (entry) {
     document.getElementById('update-order-summary').innerHTML = 
       '<div style="font-weight:600;color:var(--cream)">' + (entry.vessel ? entry.vessel.name : 'Unknown') + '</div>' +
-      '<div style="color:var(--gold)">' + entry.system + (entry.component ? ' — ' + entry.component : '') + '</div>';
+      '<div style="color:var(--gold)">' + entry.system + (entry.component ? '  -  ' + entry.component : '') + '</div>';
   }
   document.getElementById('update-error').style.display = 'none';
   document.getElementById('update-confirm-btn').disabled = false;
@@ -2354,7 +2527,7 @@ function renderMaintLog() {
       '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
       '<div>' +
       '<div style="font-size:14px;font-weight:600;color:var(--cream)">' + (e.vessel ? e.vessel.name : 'Unknown') + '</div>' +
-      '<div style="font-size:13px;color:var(--gold);margin-top:2px">' + e.system + (e.component ? ' — ' + e.component : '') + '</div>' +
+      '<div style="font-size:13px;color:var(--gold);margin-top:2px">' + e.system + (e.component ? '  -  ' + e.component : '') + '</div>' +
       '<div style="font-size:12px;color:var(--steel);margin-top:2px">' + d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + (e.reported_by ? ' · ' + e.reported_by : '') + '</div>' +
       '</div>' +
       '<span class="status-badge ' + statusClass + '">' + e.status.replace(/_/g,' ') + '</span>' +
@@ -2580,7 +2753,7 @@ async function openWorkOrderDetail(entryId) {
       document.getElementById('wod-vessel-name').textContent = entry.vessel ? entry.vessel.name : '';
       document.getElementById('wod-detail').innerHTML =
         '<div style="margin-bottom:12px">' +
-        '<div style="font-size:16px;font-weight:600;color:var(--cream)">' + entry.system + (entry.component ? ' — ' + entry.component : '') + '</div>' +
+        '<div style="font-size:16px;font-weight:600;color:var(--cream)">' + entry.system + (entry.component ? '  -  ' + entry.component : '') + '</div>' +
         '<div style="margin-top:4px"><span class="status-badge status-' + entry.status + '">' + entry.status.replace(/_/g,' ') + '</span> <span class="priority-' + entry.priority + '" style="font-size:12px;margin-left:8px">' + entry.priority + ' priority</span></div>' +
         '</div>' +
         (entry.description ? '<div style="font-size:13px;color:var(--steel);margin-bottom:8px;padding:10px;background:var(--surface2);border-radius:8px">' + entry.description + '</div>' : '') +
@@ -2627,7 +2800,7 @@ async function openWorkOrderDetail(entryId) {
 
 
 // ═══════════════════════════════════════════════════════════════
-// TRIP SYSTEM — CB CHECKLIST DEFINITIONS
+// TRIP SYSTEM  -  CB CHECKLIST DEFINITIONS
 // ═══════════════════════════════════════════════════════════════
 
 const CB_CHECKS = {
@@ -2647,7 +2820,7 @@ const CB_CHECKS = {
     'Generator oil level checked',
     'Generator coolant level checked',
     'Generator started and breakers set',
-    'Engine room visual inspection — no oil, fuel, or water leaks; no loose gear',
+    'Engine room visual inspection  -  no oil, fuel, or water leaks; no loose gear',
     'Racors drained of water',
     'Raw water and fuel supply valves open',
     'Oil level checked on all mains',
@@ -2668,12 +2841,12 @@ const CB_CHECKS = {
     'Engine oil at correct level on all engines',
     'Transmission/gearbox fluid checked',
     'Hydraulic fluid level verified',
-    'Fuel filters clear — no water or sediment',
+    'Fuel filters clear  -  no water or sediment',
     'Coolant level and condition OK on all engines',
     'Air filters inspected'
   ],
   final: [
-    'Fire extinguishers checked — fully charged',
+    'Fire extinguishers checked  -  fully charged',
     'All fire extinguishers correct number and type per COI',
     'Smoke detectors tested',
     'Navigation lights operational',
@@ -2726,7 +2899,7 @@ function openTripAction(vessel, trip) {
       '<button class="btn" onclick="closeTripAction()" style="margin-top:8px">Cancel</button>';
   } else if (trip.status === 'active') {
     body.innerHTML =
-      '<div style="font-size:13px;color:var(--green);margin-bottom:1rem"><i class="ti ti-circle-check"></i> Trip active' + (trip.trip_number ? ' — Trip #' + trip.trip_number : '') + '</div>' +
+      '<div style="font-size:13px;color:var(--green);margin-bottom:1rem"><i class="ti ti-circle-check"></i> Trip active' + (trip.trip_number ? '  -  Trip #' + trip.trip_number : '') + '</div>' +
       '<button class="btn btn-primary" onclick="closeTripAction();openUnderwayLog()"><i class="ti ti-gauge"></i> Add watch / readings</button>' +
       '<button class="btn" onclick="closeTripAction();openTripTicket(\'' + trip.id + '\')" style="margin-top:8px;border-color:var(--gold);color:var(--gold)"><i class="ti ti-file-invoice"></i> Edit trip ticket</button>' +
       reportBtn +
@@ -2905,13 +3078,28 @@ async function openUnderwayLog() {
   }
 
   buildEngineReadings();
+  // Reset underway tabs to Watch
+  const uwTabs = document.querySelectorAll('#screen-underway .nav-tab');
+  uwTabs.forEach(t => t.classList.remove('active'));
+  if (uwTabs[0]) uwTabs[0].classList.add('active');
+  ['radio','logbook','manifest','waste'].forEach(t => {
+    const d = document.getElementById('uw-tab-' + t);
+    if (d) d.style.display = 'none';
+  });
+  const watchTab = document.getElementById('uw-tab-watch');
+  if (watchTab) watchTab.style.display = 'block';
+  // Set defaults
+  const wmDate = document.getElementById('wm-date');
+  if (wmDate) wmDate.value = new Date().toISOString().split('T')[0];
+  const rlTime = document.getElementById('rl-time');
+  if (rlTime) rlTime.value = new Date().toISOString().slice(0,16);
   show('screen-underway');
 }
 
 function buildEngineReadings() {
   const el = document.getElementById('uw-engine-readings');
   if (!currentTripEngines.length) {
-    // No engines configured — show a simple engine hours field so logging still works
+    // No engines configured  -  show a simple engine hours field so logging still works
     el.innerHTML = '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px">' +
       '<div style="font-size:12px;color:var(--steel);margin-bottom:10px">No engines configured yet. You can still log engine hours below. Add engines to your vessel profile for full readings.</div>' +
       '<div class="reading-row">' +
@@ -2923,7 +3111,7 @@ function buildEngineReadings() {
     return;
   }
   el.innerHTML = currentTripEngines.map((eng, i) => {
-    const label = eng.position.charAt(0).toUpperCase() + eng.position.slice(1) + ' — ' + eng.engine_model;
+    const label = eng.position.charAt(0).toUpperCase() + eng.position.slice(1) + '  -  ' + eng.engine_model;
     return '<div class="engine-block">' +
       '<div class="engine-block-title">' + label + '</div>' +
       '<div class="engine-readings-row">' +
@@ -3008,7 +3196,7 @@ function openCloseTripModal() {
     const posLabel = p => ({ port:'Port', starboard:'Starboard', center:'Center', generator_1:'Generator 1', generator_2:'Generator 2', generator_3:'Generator 3' }[p] || p);
     container.innerHTML = currentTripEngines.map(eng =>
       '<div class="form-group">' +
-      '<label>' + posLabel(eng.position) + ' — ' + eng.engine_model + ' hours</label>' +
+      '<label>' + posLabel(eng.position) + '  -  ' + eng.engine_model + ' hours</label>' +
       '<input type="number" step="0.1" id="ct-hrs-' + eng.id + '" placeholder="e.g. 8.5">' +
       '</div>'
     ).join('');
@@ -3278,10 +3466,10 @@ async function loadVesselTrips() {
       return '<div style="padding:12px 0;border-bottom:1px solid var(--border);' + (canOpen ? 'cursor:pointer' : '') + '" ' +
         (canOpen ? 'onclick="openTripTicket(\'' + t.id + '\')"' : '') + '>' +
         '<div style="display:flex;justify-content:space-between;align-items:center">' +
-        '<div style="font-size:14px;font-weight:600;color:var(--cream)">' + (t.trip_number ? 'Trip #' + t.trip_number : 'Trip — ' + date) + '</div>' +
+        '<div style="font-size:14px;font-weight:600;color:var(--cream)">' + (t.trip_number ? 'Trip #' + t.trip_number : 'Trip  -  ' + date) + '</div>' +
         '<span style="font-size:11px;padding:3px 8px;border-radius:10px;border:1px solid ' + statusColor + ';color:' + statusColor + '">' + statusLabel + '</span>' +
         '</div>' +
-        '<div style="font-size:12px;color:var(--steel);margin-top:4px">' + date + (t.total_engine_hours ? ' — ' + t.total_engine_hours + ' engine hrs' : '') + '</div>' +
+        '<div style="font-size:12px;color:var(--steel);margin-top:4px">' + date + (t.total_engine_hours ? '  -  ' + t.total_engine_hours + ' engine hrs' : '') + '</div>' +
         (canOpen ? '<div style="font-size:11px;color:var(--gold);margin-top:4px"><i class="ti ti-file-invoice"></i> Tap to view ticket</div>' : '') +
         '</div>';
     }).join('');
@@ -3326,7 +3514,7 @@ async function loadVesselMaintenance() {
         const approveBtn = canManage ? '<button type="button" onclick="approveOrder(\''+o.id+'\')" style="margin-top:8px;padding:5px 12px;font-size:12px;border-radius:6px;border:1px solid var(--gold);background:rgba(193,125,60,0.1);color:var(--gold);cursor:pointer">Review & Assign</button>' : '';
         return '<div style="padding:12px 0;border-bottom:1px solid var(--border)">' +
           '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
-          '<div><span style="font-weight:600;color:var(--cream)">' + o.system + (o.component?' — '+o.component:'') + '</span>' +
+          '<div><span style="font-weight:600;color:var(--cream)">' + o.system + (o.component?'  -  '+o.component:'') + '</span>' +
           '<span style="font-size:10px;margin-left:8px;padding:2px 6px;border-radius:10px;border:1px solid '+pc(o.priority)+';color:'+pc(o.priority)+'">' + (o.priority||'medium') + '</span></div>' +
           '<span style="font-size:11px;color:var(--steel)">' + fmtDate(o.created_at) + '</span></div>' +
           '<div style="font-size:13px;color:var(--steel);margin-top:4px">' + o.description + '</div>' +
@@ -3340,7 +3528,7 @@ async function loadVesselMaintenance() {
       html += activeWork.map(e => {
         return '<div style="padding:12px 0;border-bottom:1px solid var(--border)">' +
           '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
-          '<div><span style="font-weight:600;color:var(--cream)">' + e.system + (e.component?' — '+e.component:'') + '</span>' +
+          '<div><span style="font-weight:600;color:var(--cream)">' + e.system + (e.component?'  -  '+e.component:'') + '</span>' +
           '<span style="font-size:10px;margin-left:8px;padding:2px 6px;border-radius:10px;border:1px solid '+pc(e.priority)+';color:'+pc(e.priority)+'">' + (e.priority||'medium') + '</span></div>' +
           '<span style="font-size:11px;padding:2px 8px;border-radius:10px;border:1px solid var(--gold);color:var(--gold)">' + (e.status||'open').replace('_',' ') + '</span></div>' +
           (e.assigned_to ? '<div style="font-size:12px;color:var(--gold);margin-top:3px"><i class="ti ti-user"></i> ' + e.assigned_to + '</div>' : '') +
@@ -3358,14 +3546,14 @@ async function loadVesselMaintenance() {
           '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
           '<div style="flex:1">' +
           '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' +
-          '<span style="font-weight:600;color:var(--cream)">' + e.system + (e.component?' — '+e.component:'') + '</span>' +
+          '<span style="font-weight:600;color:var(--cream)">' + e.system + (e.component?'  -  '+e.component:'') + '</span>' +
           (e.failure_type ? '<span style="font-size:10px;padding:2px 6px;border-radius:10px;border:1px solid '+typeColor+';color:'+typeColor+'">' + e.failure_type + '</span>' : '') +
           '</div>' +
           (e.root_cause ? '<div style="font-size:12px;color:var(--steel);margin-top:4px"><strong style="color:var(--cream)">Root cause:</strong> ' + e.root_cause + '</div>' : '') +
           (e.work_performed ? '<div style="font-size:12px;color:var(--steel);margin-top:2px"><strong style="color:var(--cream)">Work done:</strong> ' + e.work_performed + '</div>' : '') +
           (parts.length ? '<div style="font-size:12px;color:var(--steel);margin-top:2px"><strong style="color:var(--cream)">Parts:</strong> ' + parts.map(p=>p.description||p).join(', ') + '</div>' : '') +
           (e.labor_hours ? '<div style="font-size:11px;color:var(--steel);margin-top:2px">' + e.labor_hours + ' hrs labor</div>' : '') +
-          '<div style="font-size:11px;color:var(--steel);margin-top:3px">' + (e.assigned_to||'Unknown') + ' — ' + fmtDate(e.completed_at||e.created_at) + '</div>' +
+          '<div style="font-size:11px;color:var(--steel);margin-top:3px">' + (e.assigned_to||'Unknown') + '  -  ' + fmtDate(e.completed_at||e.created_at) + '</div>' +
           '</div></div></div>';
       }).join('');
     }
@@ -3433,7 +3621,7 @@ async function loadEngOrders(type) {
     let orders = [];
 
     if (type === 'assigned') {
-      // Fetch all log entries, filter to mine (open or in_progress) — catches pre-assignments from managers
+      // Fetch all log entries, filter to mine (open or in_progress)  -  catches pre-assignments from managers
       const res = await fetch(API + '/api/maintenance/log', { headers: {'Authorization': 'Bearer ' + token} });
       const data = await res.json();
       orders = (data.entries || []).filter(o => o.assigned_to === myName && o.status !== 'complete');
@@ -3476,7 +3664,7 @@ async function loadEngOrders(type) {
         actionBtn = '<button type="button" onclick="claimOrder(\'' + o.id + '\')" style="margin-top:8px;padding:6px 14px;font-size:12px;border-radius:6px;border:1px solid var(--gold);background:rgba(193,125,60,0.1);color:var(--gold);cursor:pointer"><i class="ti ti-hand-grab"></i> Claim & Start</button>';
       }
       return '<div style="padding:14px 0;border-bottom:1px solid var(--border)">' +
-        '<div style="font-size:11px;color:var(--steel);margin-bottom:4px">' + vesselName + ' — ' + date + '</div>' +
+        '<div style="font-size:11px;color:var(--steel);margin-bottom:4px">' + vesselName + '  -  ' + date + '</div>' +
         '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' +
         '<span style="font-size:14px;font-weight:600;color:var(--cream)">' + o.system + '</span>' +
         '<span style="font-size:10px;padding:2px 6px;border-radius:10px;border:1px solid ' + pc + ';color:' + pc + '">' + (o.priority||'medium') + '</span>' +
@@ -3525,9 +3713,9 @@ function markOrderComplete(logId) {
     '<div style="font-size:16px;font-weight:600;color:var(--cream);margin-bottom:1rem">Complete Work Order</div>' +
     '<div class="form-group"><label>Failure Type</label>' +
     '<select id="wc-type" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px">' +
-    '<option value="corrective">Corrective — something broke</option>' +
-    '<option value="preventive">Preventive — scheduled service</option>' +
-    '<option value="predictive">Predictive — caught early</option>' +
+    '<option value="corrective">Corrective  -  something broke</option>' +
+    '<option value="preventive">Preventive  -  scheduled service</option>' +
+    '<option value="predictive">Predictive  -  caught early</option>' +
     '</select></div>' +
     '<div class="form-group"><label>Root Cause <span class="required-star">*</span></label>' +
     '<input type="text" id="wc-cause" placeholder="e.g. Worn impeller, failed sensor, oil leak at fitting..." style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px"></div>' +
@@ -3807,9 +3995,9 @@ async function openLaborLabelSettings() {
   const html = '<div style="padding:1rem;max-width:500px;margin:0 auto">' +
     '<div style="font-size:16px;font-weight:600;color:var(--cream);margin-bottom:6px">Labor Type Labels</div>' +
     '<div style="font-size:13px;color:var(--steel);margin-bottom:1.5rem">Customize the labor column headers on trip ticket crew manifests for your company\'s billing system.</div>' +
-    '<div class="form-group"><label>Label 1 (default: ST — Straight Time)</label><input type="text" id="ll-1" value="'+companySettings.labor_label_1+'" maxlength="10" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px"></div>' +
-    '<div class="form-group"><label>Label 2 (default: PT — Premium Time)</label><input type="text" id="ll-2" value="'+companySettings.labor_label_2+'" maxlength="10" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px"></div>' +
-    '<div class="form-group"><label>Label 3 (default: OT — Overtime)</label><input type="text" id="ll-3" value="'+companySettings.labor_label_3+'" maxlength="10" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px"></div>' +
+    '<div class="form-group"><label>Label 1 (default: ST  -  Straight Time)</label><input type="text" id="ll-1" value="'+companySettings.labor_label_1+'" maxlength="10" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px"></div>' +
+    '<div class="form-group"><label>Label 2 (default: PT  -  Premium Time)</label><input type="text" id="ll-2" value="'+companySettings.labor_label_2+'" maxlength="10" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px"></div>' +
+    '<div class="form-group"><label>Label 3 (default: OT  -  Overtime)</label><input type="text" id="ll-3" value="'+companySettings.labor_label_3+'" maxlength="10" style="width:100%;padding:10px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;font-size:14px"></div>' +
     '<div id="ll-error" style="color:var(--red);font-size:13px;display:none;margin-bottom:10px"></div>' +
     '<div style="display:flex;gap:10px">' +
     '<button type="button" onclick="document.getElementById(\'ll-modal\').remove()" style="flex:1;padding:12px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:8px;cursor:pointer">Cancel</button>' +
@@ -3845,6 +4033,365 @@ async function saveLaborLabels() {
     if (errEl) { errEl.textContent = e.message; errEl.style.display = 'block'; }
   }
 }
+// ── UNDERWAY TABS ─────────────────────────────────────────────
+function switchUwTab(tab, el) {
+  document.querySelectorAll('#screen-underway .nav-tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  ['watch','radio','logbook','manifest','waste'].forEach(t => {
+    const d = document.getElementById('uw-tab-' + t);
+    if (d) d.style.display = t === tab ? 'block' : 'none';
+  });
+  if (tab === 'radio') loadRadioLogHistory();
+  if (tab === 'logbook') loadLogbookHistory();
+  if (tab === 'manifest') loadManifestHistory();
+}
+
+function openViewRecentLog() {
+  if (!currentTrip) return;
+  loadVesselDetail(currentTrip.vessel_id, (allVessels.find(v=>v.id===currentTrip.vessel_id)||{}).name||'Vessel');
+}
+
+// ── RADIO LOG ─────────────────────────────────────────────────
+async function submitRadioLog() {
+  const msg = (document.getElementById('rl-message')||{}).value?.trim();
+  const errEl = document.getElementById('rl-error');
+  if (!msg) { errEl.textContent='Message summary is required.'; errEl.style.display='block'; return; }
+  try {
+    const timeVal = document.getElementById('rl-time').value;
+    const res = await fetch(API+'/api/vessel-logs/radio-log',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({vessel_id:currentTrip.vessel_id,trip_id:currentTrip.id,
+        log_time:timeVal?new Date(timeVal).toISOString():new Date().toISOString(),
+        channel:document.getElementById('rl-channel').value,station_called:document.getElementById('rl-station').value,
+        communication_type:document.getElementById('rl-type').value,message_summary:msg,
+        operator_name:document.getElementById('rl-operator').value})});
+    if (!res.ok) throw new Error((await res.json()).error||'Failed');
+    ['rl-message','rl-station','rl-channel','rl-operator','rl-time'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+    errEl.style.display='none';
+    loadRadioLogHistory();
+  } catch(e) { errEl.textContent=e.message; errEl.style.display='block'; }
+}
+
+async function loadRadioLogHistory() {
+  if (!currentTrip) return;
+  const el = document.getElementById('rl-history-list');
+  el.innerHTML='<div class="empty-state"><span class="spinner spinner-dark"></span></div>';
+  try {
+    const res = await fetch(API+'/api/vessel-logs/radio-log?trip_id='+currentTrip.id,{headers:{'Authorization':'Bearer '+token}});
+    const data = await res.json();
+    const entries = data.entries||[];
+    if (!entries.length){el.innerHTML='<div class="empty-state">No radio log entries this trip.</div>';return;}
+    const typeLabels={routine:'Routine',port_ops:'Port Ops',safety:'Safety',urgency:'Urgency',distress:'DISTRESS'};
+    const typeColors={routine:'var(--steel)',port_ops:'var(--gold)',safety:'var(--green)',urgency:'var(--amber)',distress:'var(--red)'};
+    el.innerHTML='<div style="font-size:11px;font-weight:600;color:var(--gold);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:8px;padding:0 14px">Radio Log History</div>'+
+      entries.map(e=>{const d=new Date(e.log_time);const c=typeColors[e.communication_type]||'var(--steel)';
+        return '<div style="padding:10px 14px;border-bottom:1px solid var(--border)">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center">'+
+          '<span style="font-size:10px;padding:2px 7px;border-radius:10px;border:1px solid '+c+';color:'+c+'">'+(typeLabels[e.communication_type]||e.communication_type)+'</span>'+
+          '<span style="font-size:11px;color:var(--steel)">'+d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})+'</span></div>'+
+          (e.channel||e.station_called?'<div style="font-size:12px;color:var(--gold);margin-top:3px">'+(e.channel?'Ch '+e.channel+' ':'')+(e.station_called||'')+'</div>':'')+
+          '<div style="font-size:13px;color:var(--cream);margin-top:3px">'+e.message_summary+'</div>'+
+          (e.operator_name?'<div style="font-size:11px;color:var(--steel);margin-top:2px">'+e.operator_name+'</div>':'')+
+          '</div>';}).join('');
+  } catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed to load.</div>';}
+}
+
+// ── LOGBOOK ───────────────────────────────────────────────────
+async function submitLogbookEntry() {
+  const notes=(document.getElementById('lb-notes')||{}).value?.trim();
+  const errEl=document.getElementById('lb-error');
+  if (!notes){errEl.textContent='Entry notes are required.';errEl.style.display='block';return;}
+  try {
+    const res=await fetch(API+'/api/vessel-logs/logbook',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({vessel_id:currentTrip.vessel_id,trip_id:currentTrip.id,
+        generator_in_use:document.getElementById('lb-generator').value,
+        steering_pump:document.getElementById('lb-steering').value,entry_notes:notes})});
+    if (!res.ok) throw new Error((await res.json()).error||'Failed');
+    ['lb-notes','lb-generator','lb-steering'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+    errEl.style.display='none';
+    loadLogbookHistory();
+  } catch(e){errEl.textContent=e.message;errEl.style.display='block';}
+}
+
+async function loadLogbookHistory() {
+  if (!currentTrip) return;
+  const el=document.getElementById('lb-history-list');
+  el.innerHTML='<div class="empty-state"><span class="spinner spinner-dark"></span></div>';
+  try {
+    const res=await fetch(API+'/api/vessel-logs/logbook?trip_id='+currentTrip.id,{headers:{'Authorization':'Bearer '+token}});
+    const data=await res.json();const entries=data.entries||[];
+    if (!entries.length){el.innerHTML='<div class="empty-state">No logbook entries this trip.</div>';return;}
+    el.innerHTML='<div style="font-size:11px;font-weight:600;color:var(--gold);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:8px;padding:0 14px">Logbook History</div>'+
+      entries.map(e=>{const d=new Date(e.entry_time);
+        return '<div style="padding:10px 14px;border-bottom:1px solid var(--border)">'+
+          '<div style="display:flex;justify-content:space-between"><span style="font-size:12px;color:var(--steel)">'+(e.submitted_by_name||'')+'</span>'+
+          '<span style="font-size:11px;color:var(--steel)">'+d.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})+'</span></div>'+
+          (e.generator_in_use||e.steering_pump?'<div style="font-size:12px;color:var(--gold);margin-top:3px">'+(e.generator_in_use?'Gen: '+e.generator_in_use+' ':'')+
+          (e.steering_pump?'· Steer: '+e.steering_pump:'')+'</div>':'')+
+          '<div style="font-size:13px;color:var(--cream);margin-top:4px;line-height:1.5">'+e.entry_notes+'</div></div>';}).join('');
+  } catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed to load.</div>';}
+}
+
+// ── PASSENGER MANIFEST ────────────────────────────────────────
+let passengerRows=[];
+function addPassengerRow(name,company){
+  const list=document.getElementById('pm-passenger-list');
+  if (!list) return;
+  const id='pax-'+Date.now()+'-'+Math.random().toString(36).slice(2);
+  passengerRows.push(id);
+  const row=document.createElement('div');
+  row.id=id;row.style.cssText='display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:8px;align-items:center';
+  row.innerHTML='<input type="text" value="'+(name||'')+'" placeholder="Full name" style="padding:8px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:6px;font-size:13px">'+
+    '<input type="text" value="'+(company||'')+'" placeholder="Company" style="padding:8px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:6px;font-size:13px">'+
+    '<button type="button" onclick="this.parentElement.remove()" style="padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--red);cursor:pointer">✕</button>';
+  list.appendChild(row);
+}
+
+async function submitManifest(){
+  const errEl=document.getElementById('pm-error');
+  const rows=document.getElementById('pm-passenger-list').querySelectorAll('div[id]');
+  const passengers=[];
+  rows.forEach(row=>{const inputs=row.querySelectorAll('input');const name=inputs[0]?.value?.trim();const company=inputs[1]?.value?.trim();if(name)passengers.push({name,company:company||''});});
+  if (!passengers.length){errEl.textContent='Add at least one passenger.';errEl.style.display='block';return;}
+  try {
+    const res=await fetch(API+'/api/vessel-logs/manifest',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({vessel_id:currentTrip.vessel_id,trip_id:currentTrip.id,
+        leg_number:parseInt(document.getElementById('pm-leg').value)||1,
+        leg_description:document.getElementById('pm-desc').value,passengers})});
+    if (!res.ok) throw new Error((await res.json()).error||'Failed');
+    document.getElementById('pm-passenger-list').innerHTML='';
+    document.getElementById('pm-leg').value='1';document.getElementById('pm-desc').value='';
+    errEl.style.display='none';passengerRows=[];loadManifestHistory();
+  } catch(e){errEl.textContent=e.message;errEl.style.display='block';}
+}
+
+async function loadManifestHistory(){
+  if (!currentTrip) return;
+  const el=document.getElementById('pm-history-list');
+  el.innerHTML='<div class="empty-state"><span class="spinner spinner-dark"></span></div>';
+  try {
+    const res=await fetch(API+'/api/vessel-logs/manifest?trip_id='+currentTrip.id,{headers:{'Authorization':'Bearer '+token}});
+    const data=await res.json();const manifests=data.manifests||[];
+    if (!manifests.length){el.innerHTML='<div class="empty-state">No manifests saved yet.</div>';return;}
+    el.innerHTML='<div style="font-size:11px;font-weight:600;color:var(--gold);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:8px;padding:0 14px">Saved Manifests</div>'+
+      manifests.map(m=>{const pax=m.passengers||[];
+        return '<div style="padding:10px 14px;border-bottom:1px solid var(--border)">'+
+          '<div style="display:flex;justify-content:space-between">'+
+          '<span style="font-size:13px;font-weight:600;color:var(--cream)">Leg '+m.leg_number+(m.leg_description?'  -  '+m.leg_description:'')+'</span>'+
+          '<span style="font-size:11px;padding:2px 7px;border-radius:10px;background:rgba(45,212,191,0.1);color:var(--green);border:1px solid rgba(45,212,191,0.3)">'+m.total_pax+' pax</span></div>'+
+          pax.map(p=>'<div style="font-size:12px;color:var(--steel);margin-top:3px">'+p.name+(p.company?'  -  '+p.company:'')+'</div>').join('')+'</div>';}).join('');
+  } catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed to load.</div>';}
+}
+
+// ── WASTE MANAGEMENT ──────────────────────────────────────────
+document.addEventListener('change',function(e){
+  if (e.target.id==='wm-garbage'){const d=document.getElementById('wm-garbage-detail');if(d)d.style.display=e.target.checked?'block':'none';}
+  if (e.target.id==='wm-sewage'){const d=document.getElementById('wm-sewage-detail');if(d)d.style.display=e.target.checked?'block':'none';}
+});
+
+async function submitWasteLog(){
+  const errEl=document.getElementById('wm-error');
+  const today=new Date().toISOString().split('T')[0];
+  try {
+    const res=await fetch(API+'/api/vessel-logs/waste-log',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({vessel_id:currentTrip.vessel_id,trip_id:currentTrip.id,
+        log_date:document.getElementById('wm-date').value||today,
+        garbage_disposed:document.getElementById('wm-garbage').checked,
+        disposal_location:(document.getElementById('wm-dispose-loc')||{}).value,
+        disposal_method:(document.getElementById('wm-dispose-method')||{}).value,
+        oil_record_updated:document.getElementById('wm-oil-record').checked,
+        sewage_discharged:document.getElementById('wm-sewage').checked,
+        sewage_location:(document.getElementById('wm-sewage-loc')||{}).value,
+        notes:document.getElementById('wm-notes').value})});
+    if (!res.ok) throw new Error((await res.json()).error||'Failed');
+    errEl.style.display='none';
+    ['wm-garbage','wm-sewage','wm-oil-record'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=false;});
+    ['wm-notes','wm-date','wm-dispose-loc','wm-dispose-method','wm-sewage-loc'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+    ['wm-garbage-detail','wm-sewage-detail'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
+    alert('Waste management log saved.');
+  } catch(e){errEl.textContent=e.message;errEl.style.display='block';}
+}
+
+// ── MONTHLY CHECKLIST ─────────────────────────────────────────
+
+const MONTHLY_CHECKLIST_TEMPLATE = [
+  {section:'Documents & Administration',items:[
+    {key:'cod',label:'Certificate of Documentation (COD)',cfr:'46 CFR 67.9',cert_type:'Certificate of Documentation'},
+    {key:'coi',label:'Certificate of Inspection (COI)',cfr:'46 CFR 176.100',cert_type:'Certificate of Inspection (COI)'},
+    {key:'stability',label:'Stability Letter',cfr:'46 CFR 176.306',cert_type:'Stability Letter'},
+    {key:'masters_license',label:"Master's License On Board",cfr:'46 CFR 185.402'},
+    {key:'radio_permit',label:'Radio Operators Permit',cfr:'46 CFR 184.50'},
+    {key:'station_license',label:'Station License / Radio Telephony / Safety Certificate',cfr:'47 CFR 80',cert_type:'FCC Radio Station Authorization'},
+    {key:'oil_card',label:'Oil Pollution Card On Board',cfr:''},
+    {key:'waste_plan',label:'Waste Management Plan (Vessels ≥ 40 Feet)',cfr:'33 CFR 155.450'},
+    {key:'emergency_placard',label:'Emergency Instruction Placard',cfr:'33 CFR 151.57'},
+    {key:'broadcast_placard',label:'Emergency Broadcast Placard',cfr:'46 CFR 185.510'},
+    {key:'lj_placard',label:'Life Jacket Placard',cfr:'46 CFR 184.506'},
+    {key:'compass_card',label:'Compass Deviation Card (Date Certified?)',cfr:'46 CFR 185.516'},
+    {key:'drills',label:'Drills Completed & Recorded Monthly (Fire & Abandon Ship)',cfr:'46 CFR 185.520'},
+    {key:'drug_testing',label:'Drug Testing Program Current',cfr:'46 CFR 16.230'},
+    {key:'publications',label:'Publications On Board (Charts, Coast Pilot, Light List, Rules of the Road, Radio Log)',cfr:'46 CFR 184.420'},
+    {key:'logs_current',label:'Training Logbook, Bridge Log, Fire/Abandon Ship Drill Entries Current',cfr:'46 CFR 185.520, .524 & .702'},
+    {key:'pax_count',label:'Passenger Counts Noted in Logbook',cfr:'46 CFR 185.504'},
+    {key:'daily_checklists',label:'Daily Checklists Completed Routinely',cfr:''},
+    {key:'company_policies',label:'Company Policies & Procedures On-Board',cfr:''}
+  ]},
+  {section:'Lifesaving Equipment',items:[
+    {key:'lifejackets',label:'Lifejackets (Stenciled, reflective tape, battery checked)',cfr:'46 CFR 80.71-78'},
+    {key:'lifefloat',label:'Lifefloat / Buoyant Apparatus (Name stenciled, proper number per COI)',cfr:'46 CFR 180.130-175'},
+    {key:'ring_buoy',label:'Ring Buoy (Proper name & type with line)',cfr:'46 CFR 180.70'},
+    {key:'distress_signals',label:'Distress Signals (Correct # and stowage)',cfr:'46 CFR 180.68'},
+    {key:'epirb',label:'EPIRB (406 MHz, auto float-free, tested monthly)',cfr:'46 CFR 180.64 & 185.728',cert_type:'EPIRB Registration'},
+    {key:'first_aid',label:'USCG Approved 1st Aid Kit (Check contents)',cfr:'46 CFR 184.710'},
+    {key:'mob',label:'Man Overboard Recovery Davit and Equipment',cfr:''}
+  ]},
+  {section:'Engine Room Inspection',items:[
+    {key:'fuel_shutoff',label:'Emergency Fuel Shutoff (Labeling, valves function & lubricated)',cfr:'46 CFR 182.455'},
+    {key:'batteries',label:'Batteries (Mounting, connections & ventilation)',cfr:'46 CFR 183.350-352'},
+    {key:'engines',label:'Engines (Two independent means of control, all hoses double clamped)',cfr:'46 CFR 182.410-430 & 184.620'},
+    {key:'pressure_vessels',label:'Pressure Vessels (Test relief valves, hydro every 3 years)',cfr:'46 CFR 182.330 & 176.812'},
+    {key:'electrical',label:'Electrical System (Proper connections, no fraying)',cfr:'46 CFR 183.200-340'},
+    {key:'material_condition',label:'Material Condition (Ventilation, guards in place, no leaks)',cfr:'46 CFR 176.804 & 830'},
+    {key:'engine_oil',label:'Engine Oil Changed Per Spec (Every 500 hrs, filter labeled)',cfr:''},
+    {key:'engine_air_filter',label:'Air Filter Changed and Labeled with Date & Hours',cfr:''},
+    {key:'fuel_hoses',label:'Fuel Hoses Examined and in Good Condition',cfr:''},
+    {key:'exhausts',label:'Exhausts Examined  -  No Leaks and in Good Condition',cfr:''},
+    {key:'ahead_astern',label:'Conduct Ahead and Astern Tests of the Engine',cfr:''},
+    {key:'piping_color',label:'Piping Color Coded Per Company Requirements',cfr:''}
+  ]},
+  {section:'Auxiliary Machinery',items:[
+    {key:'gen_oil',label:'Generator Oil Changed Per Spec, Filter Labeled',cfr:''},
+    {key:'gen_air_filter',label:'Generator Air Filter Changed and Labeled',cfr:''},
+    {key:'gen_fuel_hoses',label:'Generator Fuel Hoses Examined and in Good Condition',cfr:''},
+    {key:'gen_exhausts',label:'Generator Exhausts Examined  -  No Leaks',cfr:''},
+    {key:'steering_exam',label:'Steering System Examined, No Loose Parts, Properly Lubricated',cfr:''},
+    {key:'steering_gear',label:'Steering Gear (Test Main & Auxiliary)',cfr:'46 CFR 182.600-620'},
+    {key:'gen_operational',label:'Operational Test of the Generator',cfr:''},
+    {key:'overboard_valves',label:'All Overboard Discharge Valves Closed and Opened',cfr:''},
+    {key:'msd',label:'MSD/Holding Tank Operational',cfr:''}
+  ]},
+  {section:'Fire Fighting Equipment',items:[
+    {key:'fire_ext',label:'Portable Fire Extinguishers (# and Type per COI, charge adequate, stowed correctly)',cfr:'46 CFR 181.500',cert_type:'Fire Extinguisher Certificate'},
+    {key:'fire_main',label:'Fire Main System (Condition from fixed piping to nozzles)',cfr:'46 CFR 181.300-320'},
+    {key:'fixed_fire',label:'Fixed Fire Extinguishing System (Serviced date noted)',cfr:'46 CFR 181.400-450'},
+    {key:'fire_ax',label:'Additional Equipment (Fire Ax if > 65 ft, fire buckets)',cfr:'46 CFR 181.600-610'},
+    {key:'fire_pumps',label:'Fire Pumps Tested (Record output pressure)',cfr:''},
+    {key:'smoke_detectors',label:'Test Smoke Detectors',cfr:''}
+  ]},
+  {section:'Navigation & Radio Equipment',items:[
+    {key:'nav_lights',label:'Navigation Lights',cfr:'46 CFR 183.420'},
+    {key:'nav_radio_test',label:'Testing of All Navigation & Radio Equipment (Bells, Horns, Radars, Compass, Radios, Fathometer, GPS, Day Shapes)',cfr:'46 CFR 184.402-420'}
+  ]},
+  {section:'Interior Inspection',items:[
+    {key:'bilges',label:'Condition of Bilges and Bilge Pumping System (Test for proper operation)',cfr:'46 CFR 182.50-540'},
+    {key:'structural',label:'Structural Integrity (Frames, longitudinals, hull plating  -  check for pitting)',cfr:''},
+    {key:'interior_fittings',label:'Condition of Interior Fittings (Carpet, upholstery, bulkheads)',cfr:''}
+  ]},
+  {section:'Exterior Inspection',items:[
+    {key:'hatches',label:'Watertight Hatches and Doors (Gasket material and securing mechanisms in good condition)',cfr:'46 CFR 179.330 & .360'},
+    {key:'fuel_vents',label:'Fuel Tank Vents (30x30 fuel vent screen installed)',cfr:'46 CFR 179.360'},
+    {key:'deck_clean',label:'Deck Clean and Without Tripping Hazards',cfr:''},
+    {key:'safety_labels',label:'Lifesaving and Emergency Labels Readable',cfr:''},
+    {key:'hull_condition',label:'External Hull Condition',cfr:''},
+    {key:'fenders',label:'Fender and Rigging Condition',cfr:''}
+  ]},
+  {section:'Prior to Operation',items:[
+    {key:'daily_sheets',label:'Daily Sheets Completed Properly',cfr:''}
+  ]}
+];
+
+function openMonthlyChecklist(){
+  const sel=document.getElementById('mc-vessel');
+  if (sel) sel.innerHTML='<option value="">Select vessel...</option>'+allVessels.map(v=>'<option value="'+v.id+'">'+v.name+'</option>').join('');
+  const now=new Date();
+  const mcMonth=document.getElementById('mc-month');
+  if (mcMonth) mcMonth.value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  const mcContent=document.getElementById('mc-content');
+  if (mcContent) mcContent.innerHTML='<div class="empty-state">Select a vessel and month to begin.</div>';
+  show('screen-monthly-checklist');
+}
+
+async function loadMonthlyChecklist(){
+  const vesselId=(document.getElementById('mc-vessel')||{}).value;
+  const month=(document.getElementById('mc-month')||{}).value;
+  const el=document.getElementById('mc-content');
+  if (!vesselId||!month){return;}
+  el.innerHTML='<div class="empty-state"><span class="spinner spinner-dark"></span></div>';
+  const [checkRes,certRes]=await Promise.all([
+    fetch(API+'/api/vessel-logs/monthly-checklist?vessel_id='+vesselId+'&month='+month,{headers:{'Authorization':'Bearer '+token}}),
+    fetch(API+'/api/fleet/certificates?vessel_id='+vesselId,{headers:{'Authorization':'Bearer '+token}})
+  ]);
+  const checkData=await checkRes.json();
+  const certData=certRes.ok?await certRes.json():{certificates:[]};
+  const existing=(checkData.checklists||[])[0];
+  const certs=certData.certificates||[];
+  const savedItems={};
+  (existing?.items||[]).forEach(i=>{savedItems[i.key]=i;});
+  const today=new Date();
+  const fmtDate=d=>d?new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):null;
+  let html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'+
+    '<div style="font-size:13px;color:var(--steel)">CB3  -  Crew Boat Monthly Inspection</div>'+
+    (existing?'<span style="font-size:11px;padding:3px 8px;border-radius:10px;border:1px solid var(--gold);color:var(--gold)">'+existing.status+'</span>':'')+
+    '</div>';
+  MONTHLY_CHECKLIST_TEMPLATE.forEach(section=>{
+    html+='<div style="background:var(--surface2);padding:10px 14px;border-radius:8px;margin-bottom:4px;font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.5px;text-transform:uppercase">'+section.section+'</div>';
+    section.items.forEach(item=>{
+      const saved=savedItems[item.key]||{};
+      let certInfo='';
+      if (item.cert_type){
+        const cert=certs.find(c=>c.document_type===item.cert_type);
+        if (cert&&cert.expiry_date){
+          const expiry=new Date(cert.expiry_date);const daysLeft=Math.floor((expiry-today)/86400000);
+          const expColor=daysLeft<0?'var(--red)':daysLeft<30?'var(--amber)':'var(--green)';
+          certInfo='<span style="font-size:10px;color:'+expColor+';margin-left:6px">Exp: '+fmtDate(cert.expiry_date)+'</span>';
+        }
+      }
+      const selStyle='padding:6px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:6px;font-size:12px;flex-shrink:0';
+      const inpStyle='padding:6px;background:var(--surface2);color:var(--cream);border:1px solid var(--border);border-radius:6px;font-size:12px;box-sizing:border-box';
+      html+='<div style="padding:10px 14px;border-bottom:1px solid var(--border)">'+
+        '<div style="display:flex;gap:8px;align-items:flex-start">'+
+        '<input type="text" value="'+(saved.initials||'')+'" placeholder="Init" id="mc-init-'+item.key+'" style="width:48px;'+inpStyle+';flex-shrink:0">'+
+        '<select id="mc-status-'+item.key+'" style="'+selStyle+'">'+
+        '<option value="">--</option>'+
+        '<option value="pass"'+(saved.status==='pass'?' selected':'')+'>Pass</option>'+
+        '<option value="fail"'+(saved.status==='fail'?' selected':'')+'>Fail</option>'+
+        '<option value="na"'+(saved.status==='na'?' selected':'')+'>N/A</option>'+
+        '</select>'+
+        '<div style="flex:1">'+
+        '<div style="font-size:13px;color:var(--cream)">'+item.label+certInfo+'</div>'+
+        (item.cfr?'<div style="font-size:10px;color:var(--steel);margin-top:2px">'+item.cfr+'</div>':'')+
+        '<input type="text" value="'+(saved.comments||'')+'" placeholder="Comments..." id="mc-comments-'+item.key+'" style="width:100%;margin-top:6px;'+inpStyle+'">'+
+        '</div></div></div>';
+    });
+  });
+  const existingId = existing ? existing.id : null;
+  html+='<div style="padding:16px 0;display:flex;gap:10px">'+
+    '<button type="button" onclick="saveMonthlyChecklist(\'draft\',\''+vesselId+'\',\''+month+'\','+(existingId?'\''+existingId+'\'':'null')+')" class="btn" style="flex:1">Save Draft</button>'+
+    '<button type="button" onclick="saveMonthlyChecklist(\'submitted\',\''+vesselId+'\',\''+month+'\','+(existingId?'\''+existingId+'\'':'null')+')" class="btn btn-primary" style="flex:1">Submit</button>'+
+    '</div>';
+  el.innerHTML=html;
+}
+
+async function saveMonthlyChecklist(status,vesselId,month,existingId){
+  const items=[];
+  MONTHLY_CHECKLIST_TEMPLATE.forEach(section=>{
+    section.items.forEach(item=>{
+      const statusVal=(document.getElementById('mc-status-'+item.key)||{}).value;
+      const initials=(document.getElementById('mc-init-'+item.key)||{}).value;
+      const comments=(document.getElementById('mc-comments-'+item.key)||{}).value;
+      items.push({key:item.key,label:item.label,section:section.section,status:statusVal,initials,comments});
+    });
+  });
+  try {
+    const url=API+'/api/vessel-logs/monthly-checklist'+(existingId&&existingId!=='null'?'/'+existingId:'');
+    const method=existingId&&existingId!=='null'?'PUT':'POST';
+    const body=existingId&&existingId!=='null'?{items,status}:{vessel_id:vesselId,checklist_month:month,items,status};
+    const res=await fetch(url,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(body)});
+    if (!res.ok) throw new Error((await res.json()).error||'Failed');
+    loadMonthlyChecklist();
+  } catch(e){alert('Failed to save: '+e.message);}
+}
+
+
 const ENGINE_SERVICE_SPECS = {"Caterpillar C18":[{"task":"Engine Oil & Filter Change","hours":250,"months":12,"category":"Routine"},{"task":"Engine Oil Sample","hours":250,"months":12,"category":"Routine"},{"task":"Racor (Primary) Fuel Filter","hours":250,"months":12,"category":"Routine"},{"task":"Secondary Fuel Filter","hours":250,"months":12,"category":"Routine"},{"task":"Engine Air Filter (Clean/Replace)","hours":250,"months":12,"category":"Routine"},{"task":"Crankcase Breather Clean","hours":250,"months":12,"category":"Routine"},{"task":"Coolant Level & Additive Check","hours":250,"months":12,"category":"Routine"},{"task":"Coolant Sample","hours":250,"months":12,"category":"Routine"},{"task":"Auxiliary Water Pump Impeller","hours":250,"months":12,"category":"Routine"},{"task":"Engine Belts (Inspect/Adjust)","hours":250,"months":12,"category":"Routine"},{"task":"Battery Electrolyte & Voltage","hours":250,"months":12,"category":"Routine"},{"task":"Hoses & Clamps Inspection","hours":250,"months":12,"category":"Routine"},{"task":"Aftercooler Core Clean/Bench Test","hours":1000,"months":48,"category":"Major"},{"task":"Heat Exchanger Inspect/Clean","hours":1000,"months":48,"category":"Major"},{"task":"Turbocharger Inspection","hours":1000,"months":48,"category":"Major"},{"task":"CCV Fumes Disposal Filter Replace","hours":1000,"months":48,"category":"Major"},{"task":"Coolant System Flush & Replace","hours":3000,"months":72,"category":"Overhaul"},{"task":"Water Temp Regulator (Thermostat)","hours":3000,"months":72,"category":"Overhaul"},{"task":"Engine Valve Lash Adjustment","hours":3000,"months":72,"category":"Overhaul"},{"task":"Fuel Injectors Inspect/Adjust","hours":3000,"months":72,"category":"Overhaul"},{"task":"Crankshaft Vibration Damper Inspect","hours":3000,"months":72,"category":"Overhaul"},{"task":"Engine Mounts Inspection","hours":3000,"months":72,"category":"Overhaul"},{"task":"Starter Motor Inspect/Replace","hours":3000,"months":72,"category":"Overhaul"},{"task":"Alternator Inspect/Replace","hours":3000,"months":72,"category":"Overhaul"},{"task":"Oil Cooler Core Inspect","hours":3000,"months":72,"category":"Overhaul"},{"task":"Zinc Anode Replace","hours":250,"months":6,"category":"Routine"}],"Cummins QSL9":[{"task":"Zinc Anode Replace","hours":250,"months":6,"category":"Routine"},{"task":"Engine Oil & Filter (ULSD)","hours":500,"months":12,"category":"Routine"},{"task":"Engine Air Cleaner Clean","hours":500,"months":12,"category":"Routine"},{"task":"Spin-On Fuel Filter Replace","hours":500,"months":12,"category":"Routine"},{"task":"Fuel-Water Separator (Racor)","hours":500,"months":12,"category":"Routine"},{"task":"Seawater Pump Impeller Replace","hours":500,"months":12,"category":"Routine"},{"task":"Seawater Hoses Check","hours":500,"months":12,"category":"Routine"},{"task":"Coolant Filter Change","hours":500,"months":12,"category":"Routine"},{"task":"SCA & Antifreeze Concentration","hours":500,"months":12,"category":"Routine"},{"task":"Radiator/HX Pressure Cap Inspect","hours":500,"months":12,"category":"Routine"},{"task":"Battery Cables & Connections","hours":500,"months":12,"category":"Routine"},{"task":"Engine Wiring Harness Check","hours":500,"months":12,"category":"Routine"},{"task":"Turbocharger Check","hours":1500,"months":12,"category":"Major"},{"task":"Aftercooler Assembly (Seawater)","hours":"","months":36,"category":"Major"},{"task":"Cooling System Flush","hours":2000,"months":48,"category":"Overhaul"},{"task":"Vibration Damper Check","hours":2000,"months":48,"category":"Overhaul"},{"task":"Overhead Set (Valve Lash) Adjust","hours":5000,"months":"","category":"Overhaul"}],"Cummins X15":[{"task":"Zinc Anode Replace","hours":250,"months":6,"category":"Routine"},{"task":"Engine Oil & Filter","hours":500,"months":12,"category":"Routine"},{"task":"Engine Air Cleaner Clean","hours":1500,"months":12,"category":"Routine"},{"task":"Spin-On Fuel Filter Replace","hours":500,"months":12,"category":"Routine"},{"task":"Fuel-Water Separator (Racor)","hours":500,"months":12,"category":"Routine"},{"task":"Seawater Pump Impeller Replace","hours":1500,"months":12,"category":"Routine"},{"task":"Seawater Hoses Check","hours":1500,"months":12,"category":"Routine"},{"task":"Coolant Filter Change","hours":1500,"months":12,"category":"Routine"},{"task":"SCA & Antifreeze Concentration","hours":1500,"months":12,"category":"Routine"},{"task":"HX Pressure Cap Inspect","hours":1500,"months":12,"category":"Routine"},{"task":"Battery Cables & Connections","hours":1500,"months":12,"category":"Routine"},{"task":"Engine Wiring Harness Check","hours":1500,"months":12,"category":"Routine"},{"task":"Turbocharger Check","hours":1500,"months":12,"category":"Major"},{"task":"Crankcase Breather Element","hours":1500,"months":12,"category":"Routine"},{"task":"Aftercooler Assembly (Seawater)","hours":1500,"months":36,"category":"Major"},{"task":"Cooling System Flush","hours":2000,"months":48,"category":"Overhaul"},{"task":"Vibration Damper Check","hours":2000,"months":48,"category":"Overhaul"},{"task":"Overhead Set (Valve Lash) Adjust","hours":5000,"months":"","category":"Overhaul"}],"Marine Generator":[{"task":"Engine Oil & Filter","hours":250,"months":12,"category":"Routine"},{"task":"Fuel Filter Replace","hours":250,"months":12,"category":"Routine"},{"task":"Air Filter Inspect/Replace","hours":500,"months":12,"category":"Routine"},{"task":"Coolant Sample & Top-Up","hours":500,"months":12,"category":"Routine"},{"task":"Impeller Inspect/Replace","hours":1000,"months":24,"category":"Routine"},{"task":"Coolant Flush","hours":2000,"months":48,"category":"Overhaul"},{"task":"Zinc Anode Replace","hours":"","months":6,"category":"Routine"},{"task":"Belt Inspect/Adjust","hours":500,"months":12,"category":"Routine"}],"Northern Lights Generator":[{"task":"Zinc Anode Replace","hours":"","months":6,"category":"Routine"},{"task":"Engine Oil & Filter Change","hours":150,"months":12,"category":"Routine"},{"task":"Oil Sample","hours":150,"months":12,"category":"Routine"},{"task":"Fuel Filter (Primary/Racor)","hours":250,"months":12,"category":"Routine"},{"task":"Fuel Filter (Secondary)","hours":250,"months":12,"category":"Routine"},{"task":"Seawater Pump Impeller","hours":250,"months":12,"category":"Routine"},{"task":"Raw Water Strainer Clean","hours":250,"months":12,"category":"Routine"},{"task":"Drive Belt Inspect/Adjust","hours":250,"months":12,"category":"Routine"},{"task":"Battery & Charging System Check","hours":250,"months":12,"category":"Routine"},{"task":"Air Filter Inspect/Clean","hours":500,"months":12,"category":"Routine"},{"task":"Coolant Level & Concentration","hours":500,"months":12,"category":"Routine"},{"task":"Hose & Clamp Inspection","hours":500,"months":12,"category":"Routine"},{"task":"Exhaust System Inspect","hours":500,"months":12,"category":"Routine"},{"task":"Heat Exchanger Inspect/Clean","hours":1000,"months":24,"category":"Major"},{"task":"Injectors Inspect/Test","hours":1000,"months":24,"category":"Major"},{"task":"Thermostat Replace","hours":1000,"months":24,"category":"Major"},{"task":"Coolant System Flush & Refill","hours":2000,"months":48,"category":"Overhaul"},{"task":"Valve Clearance Adjust","hours":2000,"months":48,"category":"Overhaul"},{"task":"Starter Motor Inspect","hours":2000,"months":48,"category":"Overhaul"},{"task":"Alternator Output Test","hours":2000,"months":48,"category":"Overhaul"}]};
 
 function getEngineSchedule(model) {
@@ -3875,7 +4422,7 @@ function renderEngineSchedule(model, currentHours) {
       return '<div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px">' +
         '<div style="flex:1">' +
         '<div style="font-size:13px;color:var(--cream)">' + t.task + '</div>' +
-        '<div style="font-size:11px;color:var(--steel);margin-top:2px">Every ' + (t.hours||'—') + ' hrs' + (t.months?' / ' + t.months + ' mo':'') + ' · ' + (t.category||'Routine') + '</div>' +
+        '<div style="font-size:11px;color:var(--steel);margin-top:2px">Every ' + (t.hours||' - ') + ' hrs' + (t.months?' / ' + t.months + ' mo':'') + ' · ' + (t.category||'Routine') + '</div>' +
         '</div>' +
         (statusText ? '<span style="font-size:11px;padding:3px 8px;border-radius:10px;border:1px solid ' + statusColor + ';color:' + statusColor + ';white-space:nowrap">' + statusText + '</span>' : '') +
         '</div>';
@@ -3983,7 +4530,7 @@ async function openTripTicket(tripId) {
     if (l3) l3.textContent = companySettings.labor_label_3 || 'OT';
 
     document.getElementById('tt-number').textContent =
-      t.ticket_number ? 'Ticket #' + t.ticket_number : (ttIsLocked ? 'Locked — Trip Closed' : 'Live Draft');
+      t.ticket_number ? 'Ticket #' + t.ticket_number : (ttIsLocked ? 'Locked  -  Trip Closed' : 'Live Draft');
     document.getElementById('tt-launch').value = trip.vessel ? trip.vessel.name : '';
     document.getElementById('tt-ship').value = t.destination || '';
     document.getElementById('tt-date').value = t.date || new Date().toISOString().split('T')[0];
@@ -4322,8 +4869,8 @@ async function openComplianceReport() {
 }
 
 function buildComplianceHTML(d) {
-  const fmt = dt => dt ? new Date(dt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
-  const fmtDate = dt => dt ? new Date(dt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+  const fmt = dt => dt ? new Date(dt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}) : ' - ';
+  const fmtDate = dt => dt ? new Date(dt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : ' - ';
 
   const tripsHTML = d.trips.length === 0 ? '<p style="color:#888">No completed voyages in this period.</p>' :
     d.trips.map(t => {
@@ -4332,7 +4879,7 @@ function buildComplianceHTML(d) {
       return '<div style="border:1px solid #ddd;border-radius:6px;padding:12px;margin-bottom:12px">' +
         '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
         '<div><strong>' + (t.vessel ? t.vessel.name : 'Unknown Vessel') + '</strong>' +
-        (t.trip_number ? ' — Trip #' + t.trip_number : '') + '</div>' +
+        (t.trip_number ? '  -  Trip #' + t.trip_number : '') + '</div>' +
         '<div style="color:#666;font-size:12px">' + fmtDate(t.departure_time) + '</div></div>' +
         '<div style="color:#555;font-size:13px;margin-top:6px">' +
         'Departed: ' + fmt(t.departure_time) + ' &nbsp;|&nbsp; Arrived: ' + fmt(t.arrival_time) +
@@ -4369,29 +4916,29 @@ function buildComplianceHTML(d) {
     '<th style="text-align:left;padding:6px;border-bottom:2px solid #ddd">Completed</th>' +
     '</tr></thead><tbody>' +
     d.maintenance_completed.map(m => '<tr>' +
-      '<td style="padding:6px;border-bottom:1px solid #eee">' + (m.vessel ? m.vessel.name : '—') + '</td>' +
-      '<td style="padding:6px;border-bottom:1px solid #eee">' + m.system + (m.component ? ' — ' + m.component : '') + '</td>' +
-      '<td style="padding:6px;border-bottom:1px solid #eee">' + (m.work_performed || m.description || '—') + '</td>' +
-      '<td style="padding:6px;border-bottom:1px solid #eee">' + (m.assigned_to || '—') + '</td>' +
+      '<td style="padding:6px;border-bottom:1px solid #eee">' + (m.vessel ? m.vessel.name : ' - ') + '</td>' +
+      '<td style="padding:6px;border-bottom:1px solid #eee">' + m.system + (m.component ? '  -  ' + m.component : '') + '</td>' +
+      '<td style="padding:6px;border-bottom:1px solid #eee">' + (m.work_performed || m.description || ' - ') + '</td>' +
+      '<td style="padding:6px;border-bottom:1px solid #eee">' + (m.assigned_to || ' - ') + '</td>' +
       '<td style="padding:6px;border-bottom:1px solid #eee">' + fmtDate(m.completed_at) + '</td>' +
       '</tr>').join('') +
     '</tbody></table>';
 
-  return '<!DOCTYPE html><html><head><title>VPT Compliance Report — ' + d.date_from + ' to ' + d.date_to + '</title>' +
+  return '<!DOCTYPE html><html><head><title>VPT Compliance Report  -  ' + d.date_from + ' to ' + d.date_to + '</title>' +
     '<style>body{font-family:"Helvetica Neue",sans-serif;color:#222;padding:2rem;max-width:900px;margin:0 auto}' +
     'h1{color:#1a1a1a;border-bottom:3px solid #C9A84C;padding-bottom:8px}' +
     'h2{color:#444;margin-top:2rem;border-bottom:1px solid #ddd;padding-bottom:6px}' +
     '.meta{color:#666;font-size:13px;margin-bottom:2rem}' +
     '@media print{body{padding:0}}</style></head><body>' +
-    '<h1>Vantage Point Tracking — Compliance Report</h1>' +
+    '<h1>Vantage Point Tracking  -  Compliance Report</h1>' +
     '<div class="meta"><strong>' + d.company.name + '</strong><br>' +
-    'Report period: ' + fmtDate(d.date_from) + ' — ' + fmtDate(d.date_to) + '<br>' +
+    'Report period: ' + fmtDate(d.date_from) + '  -  ' + fmtDate(d.date_to) + '<br>' +
     'Generated: ' + fmt(d.generated_at) + ' by ' + d.generated_by + '<br>' +
     'Vessels: ' + d.vessels.map(v => v.name).join(', ') + '</div>' +
     '<h2>Voyage Records (' + d.trips.length + ')</h2>' + tripsHTML +
     '<h2>Safety Drills (' + d.drills.length + ')</h2>' + drillsHTML +
     '<h2>Maintenance Completed (' + d.maintenance_completed.length + ')</h2>' + maintHTML +
-    '<p style="margin-top:3rem;color:#999;font-size:11px">Generated by Vantage Point Tracking — ' +
+    '<p style="margin-top:3rem;color:#999;font-size:11px">Generated by Vantage Point Tracking  -  ' +
     'All entries are digitally timestamped and tamper-evident per USCG inspection requirements.</p>' +
     '</body></html>';
 }
@@ -4549,7 +5096,7 @@ async function runAIOnboard() {
     if (section) section.style.display = 'block';
     const icon = document.getElementById('api-key-toggle-icon');
     if (icon) icon.textContent = '▲ collapse';
-    alert('Please enter your free Google Gemini API key first (expand the section above). Get one at aistudio.google.com — no credit card needed.');
+    alert('Please enter your free Google Gemini API key first (expand the section above). Get one at aistudio.google.com  -  no credit card needed.');
     return;
   }
 
@@ -4686,7 +5233,7 @@ async function loadAnalytics() {
     const completed = orders.filter(o => o.status === 'completed' && new Date(o.created_at) >= thirtyAgo).length;
     document.getElementById('an-open').textContent = open;
     document.getElementById('an-completed').textContent = completed;
-    document.getElementById('an-avg-res').textContent = '—';
+    document.getElementById('an-avg-res').textContent = ' - ';
     // Recurring: systems appearing more than once
     const sysCounts = {};
     orders.forEach(o => { sysCounts[o.system] = (sysCounts[o.system]||0) + 1; });
@@ -4854,4 +5401,4 @@ function recordSickCall() {
 </div>
 
 </body>
-</html>
+</html

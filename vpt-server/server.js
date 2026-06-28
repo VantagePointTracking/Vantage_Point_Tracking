@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
- 
+
 const authRoutes = require('./routes/auth');
 const vesselRoutes = require('./routes/vessels');
 const logRoutes = require('./routes/logs');
@@ -14,10 +14,11 @@ const tripTicketsRoutes = require('./routes/trip-tickets');
 const purchaseOrdersRoutes = require('./routes/purchase-orders');
 const reportsRoutes = require('./routes/reports');
 const voyageLogRoutes = require('./routes/voyage-log');
+const vesselLogsRoutes = require('./routes/vessel-logs');
 const aiRoutes = require('./routes/ai');
- 
+
 const app = express();
- 
+
 // Security hardening
 app.disable('x-powered-by');
 app.use((req, res, next) => {
@@ -30,11 +31,11 @@ app.use((req, res, next) => {
   }
   next();
 });
- 
+
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
- 
+
 app.use('/api/auth', authRoutes);
 app.use('/api/vessels', vesselRoutes);
 app.use('/api/logs', logRoutes);
@@ -46,21 +47,21 @@ app.use('/api/trip-tickets', tripTicketsRoutes);
 app.use('/api/purchase-orders', purchaseOrdersRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/voyage-log', voyageLogRoutes);
+app.use('/api/vessel-logs', vesselLogsRoutes);
 app.use('/api/ai', aiRoutes);
- 
+
 app.get(['/','/api', '/app', '/login'], (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
- 
+
 app.use((req, res) => res.status(404).json({ error: 'Route not found' }));
 app.use((err, req, res, next) => res.status(500).json({ error: err.message }));
- 
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
- 
- 
- 
- 
- 
- 
- 
+
+
+
+
+
+

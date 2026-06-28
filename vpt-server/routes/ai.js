@@ -11,7 +11,8 @@ router.use(requireAuth);
 // Falls back to server ANTHROPIC_API_KEY if no user key provided.
 router.post('/analyze', async (req, res) => {
   const { userApiKey, model, max_tokens, messages } = req.body;
-  const apiKey = userApiKey || process.env.ANTHROPIC_API_KEY;
+  // Use user-provided key, fall back to server Gemini key, then Anthropic key
+  const apiKey = userApiKey || process.env.GEMINI_API_KEY || process.env.ANTHROPIC_API_KEY;
 
   if (!apiKey) {
     return res.status(500).json({
