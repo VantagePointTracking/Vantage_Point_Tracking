@@ -86,4 +86,22 @@ router.post('/analyze', async (req, res) => {
   }
 });
 
+// ── POST /api/ai/log-interaction ─────────────────────────────
+router.post('/log-interaction', async (req, res) => {
+  const { question, response, screen } = req.body;
+  try {
+    const supabase = require('../lib/supabase');
+    await supabase.from('ai_interactions').insert({
+      company_id: req.user.company_id,
+      user_id: req.user.id,
+      user_name: req.user.full_name,
+      question: question || null,
+      response: response || null,
+      screen_context: screen || null,
+      created_at: new Date().toISOString()
+    });
+  } catch(e) { /* non-critical — don't fail */ }
+  res.json({ logged: true });
+});
+
 module.exports = router;
