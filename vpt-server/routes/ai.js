@@ -22,7 +22,7 @@ router.post('/analyze', async (req, res) => {
 
   try {
     // ── Google Gemini (free tier) ───────────────────────────
-    if (apiKey.startsWith('AIza')) {
+    if (apiKey.startsWith('AIza') || apiKey.startsWith('AQ.')) {
       // Convert Anthropic message format → Gemini format
       const parts = [];
       for (const msg of messages) {
@@ -39,7 +39,7 @@ router.post('/analyze', async (req, res) => {
       }
 
       const geminiRes = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + apiKey,
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -61,7 +61,7 @@ router.post('/analyze', async (req, res) => {
 
     // ── Anthropic (paid) ────────────────────────────────────
     if (!apiKey.startsWith('sk-ant-') && !apiKey.startsWith('sk-')) {
-      return res.status(400).json({ error: 'Unrecognized API key format. Use a Google Gemini key (AIza...) or Anthropic key (sk-ant-...).' });
+      return res.status(400).json({ error: 'API key format not recognized. Use a Google Gemini key from aistudio.google.com or an Anthropic key.' });
     }
 
     const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {

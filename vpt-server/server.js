@@ -23,8 +23,11 @@ const app = express();
 app.disable('x-powered-by');
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // Only set CSP on HTML responses, not API responses (API doesn't need frame protection)
+  if (!req.path.startsWith('/api/')) {
+    res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
+  }
   // Cache API responses for 30s to improve performance
   if (req.path.startsWith('/api/')) {
     res.setHeader('Cache-Control', 'private, max-age=30');

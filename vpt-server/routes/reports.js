@@ -3,22 +3,22 @@ const supabase = require('../lib/supabase');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const router = express.Router();
 router.use(requireAuth);
- 
+
 const MANAGE_ROLES = ['overlordadmin','company_admin','port_engineer','vessel_ops_manager'];
- 
+
 // ── GET /api/reports/compliance ───────────────────────────────
 // Returns all voyage, maintenance, and drill data for a date range
 // Frontend formats this as a printable HTML compliance report
 router.get('/compliance', requireRole(MANAGE_ROLES), async (req, res) => {
   const { date_from, date_to, vessel_id } = req.query;
   const cid = req.user.company_id;
- 
+
   if (!date_from || !date_to) {
     return res.status(400).json({ error: 'date_from and date_to are required' });
   }
- 
+
   try {
-    const [companyRes, vesselRes, tripsRes, ticketsRes, watchRes, maintRes, logsRes] = await Promise.all([
+    const [companyRes, vesselRes, tripsRes, ticketsRes, watchRes, maintRes, logsRes, radioRes, wasteRes, manifestRes, monthlyRes] = await Promise.all([
       supabase.from('companies').select('id,name').eq('id', cid).single(),
       supabase.from('vessels').select('id,name,vessel_type').eq('company_id', cid).order('name'),
       supabase.from('trips')
@@ -49,16 +49,37 @@ router.get('/compliance', requireRole(MANAGE_ROLES), async (req, res) => {
         .select('*,vessel:vessels(id,name)')
         .eq('company_id', cid)
         .gte('log_date', date_from)
-        .lte('log_date', date_to)
+        .lte('log_date', date_to),
+      supabase.from('radio_log_entries')
+        .select('*,vessel:vessels(id,name)')
+        .eq('company_id', cid)
+        .gte('log_time', date_from)
+        .lte('log_time', date_to + 'T23:59:59Z'),
+      supabase.from('waste_management_log')
+        .select('*,vessel:vessels(id,name)')
+        .eq('company_id', cid)
+        .gte('log_date', date_from)
+        .lte('log_date', date_to),
+      supabase.from('passenger_manifests')
+        .select('*,vessel:vessels(id,name)')
+        .eq('company_id', cid)
+        .gte('created_at', date_from)
+        .lte('created_at', date_to + 'T23:59:59Z'),
+      supabase.from('monthly_checklists')
+        .select('*,vessel:vessels(id,name)')
+        .eq('company_id', cid)
+        .eq('status', 'submitted')
+        .gte('checklist_month', date_from)
+        .lte('checklist_month', date_to)
     ]);
- 
+
     const tickets = ticketsRes.data || [];
     const trips = (tripsRes.data || []).map(t => ({
       ...t,
       ticket: tickets.find(tk => tk.trip_id === t.id) || null,
       watches: (watchRes.data || []).filter(w => w.trip_id === t.id)
     }));
- 
+
     // Extract all drills from tickets
     const drills = [];
     tickets.forEach(tk => {
@@ -72,10 +93,10 @@ router.get('/compliance', requireRole(MANAGE_ROLES), async (req, res) => {
         });
       });
     });
- 
+
     let vessels = vesselRes.data || [];
     if (vessel_id) vessels = vessels.filter(v => v.id === vessel_id);
- 
+
     res.json({
       company: companyRes.data,
       date_from,
@@ -86,13 +107,16 @@ router.get('/compliance', requireRole(MANAGE_ROLES), async (req, res) => {
       trips,
       drills,
       maintenance_completed: maintRes.data || [],
-      engine_logs: logsRes.data || []
+      engine_logs: logsRes.data || [],
+      radio_logs: radioRes.data || [],
+      waste_logs: wasteRes.data || [],
+      passenger_manifests: manifestRes.data || [],
+      monthly_checklists: monthlyRes.data || []
     });
   } catch (err) {
     console.error('Compliance report error:', err.message);
     res.status(500).json({ error: 'Failed to generate report', detail: err.message });
   }
 });
- 
+
 module.exports = router;
- 
