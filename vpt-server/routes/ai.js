@@ -1,4 +1,3 @@
-
 const express = require('express');
 const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
@@ -51,7 +50,10 @@ router.post('/analyze', async (req, res) => {
       const geminiData = await geminiRes.json();
 
       if (!geminiRes.ok) {
-        const msg = geminiData.error?.message || 'Gemini API error';
+        let msg = geminiData.error?.message || 'Gemini API error';
+        if (geminiRes.status === 429) {
+          msg = 'AI usage limit reached for now. The free Gemini tier resets daily — try again shortly, or ask Tanner to upgrade to a paid Gemini key for higher limits.';
+        }
         return res.status(geminiRes.status).json({ error: msg });
       }
 

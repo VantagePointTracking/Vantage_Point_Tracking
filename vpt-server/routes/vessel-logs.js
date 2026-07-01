@@ -73,10 +73,11 @@ router.post('/logbook', async (req, res) => {
 // ── WASTE MANAGEMENT ──────────────────────────────────────────
 router.get('/waste-log', async (req, res) => {
   try {
-    const { vessel_id } = req.query;
+    const { vessel_id, trip_id } = req.query;
     let q = supabase.from('waste_management_log').select('*')
       .eq('company_id', req.user.company_id).order('created_at', { ascending: false }).limit(100);
     if (vessel_id) q = q.eq('vessel_id', vessel_id);
+    if (trip_id) q = q.eq('trip_id', trip_id);
     const { data, error } = await q;
     if (error) throw error;
     res.json({ entries: data || [] });
