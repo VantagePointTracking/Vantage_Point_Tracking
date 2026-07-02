@@ -1,3 +1,4 @@
+
 const express = require('express');
 const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
@@ -11,12 +12,13 @@ router.use(requireAuth);
 // Falls back to server ANTHROPIC_API_KEY if no user key provided.
 router.post('/analyze', async (req, res) => {
   const { userApiKey, model, max_tokens, messages } = req.body;
-  // Use user-provided key, fall back to server Gemini key, then Anthropic key
-  const apiKey = userApiKey || process.env.GEMINI_API_KEY || process.env.ANTHROPIC_API_KEY;
+  // Prefer Anthropic (Claude) — higher usage limits than free Gemini tier.
+  // Falls back to Gemini, then any user-provided key.
+  const apiKey = process.env.ANTHROPIC_API_KEY || userApiKey || process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
     return res.status(500).json({
-      error: 'No API key set. Enter a free Google Gemini key from aistudio.google.com in the AI Onboard screen.'
+      error: 'No API key set. Add ANTHROPIC_API_KEY or GEMINI_API_KEY to Railway Variables.'
     });
   }
 
@@ -74,12 +76,19 @@ router.post('/analyze', async (req, res) => {
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01'
       },
-      body: JSON.stringify({ model, max_tokens, messages })
+      body: JSON.stringify({ model: model || 'claude-haiku-4-5-20251001', max_tokens: max_tokens || 1024, messages })
     });
 
     const anthropicData = await anthropicRes.json();
     if (anthropicRes.status === 401) {
       return res.status(401).json({ error: 'Invalid Anthropic API key.' });
+    }
+    if (anthropicRes.status === 429) {
+      return res.status(429).json({ error: 'Anthropic usage limit reached. Check usage/billing at console.anthropic.com.' });
+    }
+    if (anthropicRes.status === 400) {
+      const msg = anthropicData.error?.message || 'Anthropic request rejected — check the model name and request format.';
+      return res.status(400).json({ error: msg });
     }
     return res.status(anthropicRes.status).json(anthropicData);
 
