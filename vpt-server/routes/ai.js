@@ -87,6 +87,7 @@ router.post('/analyze', async (req, res) => {
       return res.status(429).json({ error: 'Anthropic usage limit reached. Check usage/billing at console.anthropic.com.' });
     }
     if (anthropicRes.status === 400) {
+      console.error('Anthropic 400 error:', JSON.stringify(anthropicData));
       const msg = anthropicData.error?.message || 'Anthropic request rejected — check the model name and request format.';
       return res.status(400).json({ error: msg });
     }
